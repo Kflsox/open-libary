@@ -1,7 +1,7 @@
 # Check on real machines: Windows, Ubuntu, Mac with Apple silicon and Intel.
 # Runs on demand (Actions, "Check", Run workflow) and on version tags. "pakete" also builds and starts the packaged
-# apps. A version tag (git tag v1.2.0 && git push origin v1.2.0) publishes them as a release, once each app has
-# started on its own system.
+# apps. "release" or a version tag (git tag v1.2.0 && git push origin v1.2.0) also publishes them as a release, once
+# each app has started on its own system; without a tag, the version comes from app/fenster/package.json.
 name: Check
 
 on:
@@ -9,6 +9,10 @@ on:
     inputs:
       pakete:
         description: "Also build and start the packaged apps (takes longer)"
+        type: boolean
+        default: false
+      release:
+        description: "Publish the packaged apps as a release (version from app/fenster/package.json)"
         type: boolean
         default: false
   push:
@@ -41,7 +45,7 @@ jobs:
 
   fenster-pakete:
     name: Build the Windows and Linux apps, start the Linux app
-    if: inputs.pakete || startsWith(github.ref, 'refs/tags/')
+    if: inputs.pakete || inputs.release || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -122,7 +126,7 @@ jobs:
 
   mac-paket:
     name: Build and start the Mac app (Apple silicon)
-    if: inputs.pakete || startsWith(github.ref, 'refs/tags/')
+    if: inputs.pakete || inputs.release || startsWith(github.ref, 'refs/tags/')
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -157,13 +161,17 @@ jobs:
 
   release:
     name: Publish the release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: inputs.release || startsWith(github.ref, 'refs/tags/v')
     needs: [windows-app, mac-intel]       # the Linux app started in fenster-pakete, which windows-app needs
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: app/fenster/package.json
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v4
         with:
           path: pakete
@@ -172,13 +180,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          v="${GITHUB_REF_NAME#v}"
+          case "$GITHUB_REF" in
+            refs/tags/v*) tag="$GITHUB_REF_NAME" ;;
+            *)            tag="v$(jq -r .version app/fenster/package.json)" ;;
+          esac
+          v="${tag#v}"
           for f in pakete/*; do                  # "Open Libary 2026-11-03 Windows.zip" -> "Open-Libary-1.2.0-Windows.zip"
             n="$(basename "$f")"; mv "$f" "pakete/Open-Libary-$v-${n##* }"
           done
           ls -la pakete
-          gh release create "$GITHUB_REF_NAME" pakete/* --repo "$GITHUB_REPOSITORY" --title "Open Libary $v" \
-            --notes "Download the package for your computer below; nothing else has to be installed. Step by step, including the first start of an unsigned app: [GUIDE.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/GUIDE.md).
+          gh release create "$tag" pakete/* --target "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" --title "Open Libary $v" \
+            --notes "Download the package for your computer below; nothing else has to be installed. Step by step, including the first start of an unsigned app: [GUIDE.md](https://github.com/$GITHUB_REPOSITORY/blob/$tag/GUIDE.md).
 
           | Computer | Package |
           |---|---|

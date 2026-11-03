@@ -1,41 +1,41 @@
-/* Glas: Liquid Glass allein, alles schwebt als Glas über einem ruhigen Farbgrund, hell oder dunkel nach macOS. */
-/* Liquid Glass ALL IN (24.10.2026, Wunsch von Jeremias). Das Material selbst (Kopf, Player, Unterlage, Menüs, Kapseln,
-   Segment, Lichtkante, Scroll-Edge, Fallbacks) steht in glasschicht.css und gilt für jeden Stil mit Glas; diese Datei
-   setzt nur die neutralen Glaswerte und legt zusätzlich, bewusst entgegen Apples Regel "kein Glas auf Inhalt", auch die
-   Filterspalte, die Liste, die Karten in Netz, Zufall, Downloads und Einstellungen auf Glas. Damit das Glas etwas zu
-   brechen hat, liegt darunter ein ruhiger Grund mit drei großen, schwachen Farbfeldern. Lesbarkeit vor Wirkung: das Glas
-   der Inhaltsflächen ist dichter als das der Leisten, kein Glas in Glas (Zeilen, Chips, Felder sind nur Füllungen).
-   Grundlage: Skill apple-liquid-glass (xenitV1, MIT) und Apples HIG, verdichtet in scratchpad/glas/skill/GRUNDLAGE.md.
-   Alle Glaszahlen sind Startwerte von Hand, Apple veröffentlicht keine. */
+/* Glass: Liquid Glass on its own, everything floats as glass over a calm colored background, light or dark following macOS. */
+/* Liquid Glass ALL IN. The material itself (header, player, backing track, menus, capsules, segmented control,
+   light edge, scroll edge, fallbacks) lives in glasschicht.css and applies to every style with glass; this file only
+   sets the neutral glass values and, deliberately against Apple's rule "no glass on content", also puts the filter
+   column, the list and the cards in Web, Random, Downloads and Settings on glass. So the glass has something to
+   refract, a calm background with three large, faint color fields lies underneath. Legibility over effect: the glass
+   of the content surfaces is denser than that of the bars, no glass on glass (rows, chips, fields are only fills).
+   Basis: the apple-liquid-glass skill (xenitV1, MIT) and Apple's HIG.
+   All glass numbers are hand-picked starting values, Apple publishes none. */
 :root{
-  /* Inhalt: grauer Grund, weiße Karten (gruppiert wie bei Apple) */
+  /* Content: gray background, white cards (grouped as in Apple's apps) */
   --grund:#f2f2f7; --grund2:#e8e8ee; --karte:#ffffff; --karte2:#f6f6f8;
   --flaeche:rgba(120,120,128,.08); --zeile:rgba(0,113,227,.11); --linie:rgba(60,60,67,.13); --linie2:rgba(60,60,67,.24);
-  --text:#1d1d1f; --leise:#5a5a5f; --sehrleise:#606065;   /* auf Glas eine Stufe dunkler: 11-px-Packnamen über überfahrenen Zeilen */
+  --text:#1d1d1f; --leise:#5a5a5f; --sehrleise:#606065;   /* one step darker on glass: 11 px pack names over hovered rows */
   --signal:#0071e3; --auf-signal:#ffffff; --signal-weich:rgba(0,113,227,.12);
   --ok:#1a7f37; --warn:#9a5700; --nein:#d70015;
   --fuellung:rgba(120,120,128,.12); --fuellung2:rgba(120,120,128,.20);
   --leiste:#f2f2f7; --leiste-text:#1d1d1f; --leiste-leise:#636368; --leiste-linie:rgba(60,60,67,.13);
-  /* Glas, Variante regular: fast deckend, Hell und Dunkel mit eigenen Werten */
+  /* Glass, regular variant: almost opaque, separate values for light and dark */
   --fuss:#fafafcc7; --fuss-text:#1d1d1f; --fuss-leise:#55555a; --fuss-linie:rgba(60,60,67,.16); --fuss-warn:#9a5700;
   --fuss-fuellung:rgba(120,120,128,.14); --fuss-feld:rgba(255,255,255,.55);
   --glas:rgba(250,250,252,.68); --glas-dicht:rgba(250,250,252,.94); --glas-deckend:rgba(250,250,252,.96);
   --glas-filter:saturate(180%) blur(28px);
-  /* Inhaltsglas (ALL IN): dichter als die Leisten, weil Text darauf steht; Kopfzeile der Liste etwas leichter darüber */
+  /* Content glass (ALL IN): denser than the bars because text sits on it; the list header slightly lighter on top */
   --inhalt-glas:rgba(252,252,254,.72); --inhalt-kopf:rgba(252,252,254,.56); --inhalt-deckend:#fbfbfd;
-  --spalte-glas:rgba(252,252,254,.58);    /* Filterspalte: dünner als die Liste, damit der Farbgrund sichtbar durchkommt */
-  /* Inhaltsflächen ohne Schatten (Kritik 24.10. abends: Weiß, Rundung und Schatten auf allem war der Standard-Look);
-     sie heben sich nur über die Lichtkante ab, den Schatten tragen allein die schwebenden Leisten */
+  --spalte-glas:rgba(252,252,254,.58);    /* Filter column: thinner than the list so the colored background shows through */
+  /* Content surfaces without shadows (feedback: white, rounding and shadows on everything was the default look);
+     they stand out only through the light edge, only the floating bars carry a shadow */
   --inhalt-kante:inset 0 1px 0 rgba(255,255,255,.95),inset 0 0 0 1px rgba(255,255,255,.55),0 0 0 .5px rgba(30,40,80,.06);
   --feld:rgba(255,255,255,.72);
-  /* Grund: drei große, schwache Farbfelder (Blau, Blaugrün, warmes Orange) über hellem Grau */
+  /* Background: three large, faint color fields (blue, teal, warm orange) over light gray */
   --fleck1:rgba(0,113,227,.52); --fleck2:rgba(48,176,199,.46); --fleck3:rgba(255,149,0,.34);
   --kopf-fuellung:var(--fuellung); --kopf-fuellung2:var(--fuellung2); --play-schatten:0 2px 8px rgba(0,113,227,.28);
   --glas-schatten:0 8px 26px rgba(0,0,0,.10),0 1px 3px rgba(0,0,0,.06);
   --glas-innen:inset 0 .5px 0 rgba(255,255,255,.85),inset 0 0 0 .5px rgba(255,255,255,.35);
   --glanz:.30; --kante1:rgba(255,255,255,.90); --kante2:rgba(255,255,255,.16); --kante3:rgba(255,255,255,.55);
   --karte-schatten:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.045);
-  /* Segment und Regler: gefüllte Spur, deckender heller Daumen */
+  /* Segmented control and sliders: filled track, opaque light thumb */
   --segment-spur:rgba(120,120,128,.12); --segment-daumen:#ffffff; --segment-text:#1d1d1f;
   --segment-schatten:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04);
   --regler-an:#6e6e73; --regler-aus:rgba(120,120,128,.24); --regler-griff:#ffffff;
@@ -43,17 +43,17 @@
   --welle-an:#0071e3; --welle-aus:rgba(60,60,67,.44); --welle-linie:rgba(60,60,67,.16);
   --schrift:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto, Ubuntu, sans-serif;
   --schrift-name:var(--schrift); --schrift-marke:var(--schrift);
-  --mono:var(--schrift);          /* Zahlen in der Systemschrift mit festen Ziffernbreiten statt Monospace */
+  --mono:var(--schrift);          /* Numbers in the system font with tabular figures instead of monospace */
   --groesse:13px; --rund:8px; --rund-knopf:999px; --zeile-hoch:7px; --seite-breit:264px;
   --bahn:cubic-bezier(.22,1,.36,1);
   color-scheme:light;
 }
-/* Dunkel: Basis fast schwarz, erhöhte Flächen deutlich heller; Glas mit eigener Tönung, schwächerer Kante, tieferem Schatten */
+/* Dark: base almost black, raised surfaces clearly lighter; glass with its own tint, weaker edge, deeper shadow */
 @media (prefers-color-scheme:dark){
   :root{
     --grund:#131316; --grund2:#0b0b0d; --karte:#1d1d20; --karte2:#26262a;
     --flaeche:rgba(120,120,128,.16); --zeile:rgba(77,163,255,.18); --linie:rgba(255,255,255,.10); --linie2:rgba(255,255,255,.18);
-    --text:#f5f5f7; --leise:#adadb2; --sehrleise:#a9a9af;   /* heller seit den kräftigeren Farbfeldern (4,48 auf der aktiven Zeile) */
+    --text:#f5f5f7; --leise:#adadb2; --sehrleise:#a9a9af;   /* lighter since the color fields got stronger (4.48 on the active row) */
     --signal:#4da3ff; --auf-signal:#06213f; --signal-weich:rgba(77,163,255,.18);
     --ok:#3dd068; --warn:#ffb340; --nein:#ff6961;
     --fuellung:rgba(120,120,128,.24); --fuellung2:rgba(120,120,128,.34);
@@ -80,27 +80,27 @@
   }
 }
 
-/* ---------- Grund: ruhig und leicht farbig, damit das Glas etwas zu brechen hat (nichts Grelles, nichts bewegt sich) */
+/* ---------- Background: calm and slightly colored so the glass has something to refract (nothing loud, nothing moves) */
 html,body{background:
   radial-gradient(56vw 46vw at 6% 0%,var(--fleck1),transparent 72%),
   radial-gradient(46vw 44vw at 100% 34%,var(--fleck2),transparent 72%),
   radial-gradient(58vw 46vw at 58% 108%,var(--fleck3),transparent 72%),
   linear-gradient(180deg,var(--grund) 0%,var(--grund2) 100%);background-attachment:fixed;-webkit-font-smoothing:antialiased}
 
-/* ---------- ALL IN: der Inhalt liegt ebenfalls auf Glas. Flächen schweben mit 12 px Abstand, Rundungen konzentrisch zu
-   Kopf und Player (22 px). Die Kante ist hier ein inneres Licht (box-shadow), weil Filterspalte und Liste selbst rollen
-   und ein ::before mitrollen würde. Kinder (Zeilen, Chips, Felder) malen nur Füllungen, kein eigenes Glas. */
+/* ---------- ALL IN: the content sits on glass too. Surfaces float 12 px apart, corners concentric with header and
+   player (22 px). The edge here is an inner light (box-shadow) because the filter column and the list scroll
+   themselves and a ::before would scroll along. Children (rows, chips, fields) paint fills only, no glass of their own. */
 html.glas #bib > aside,html.glas #bib > .liste,html.glas #netzspalten > section,html.glas .kachel,html.glas .zufallkopf,
 html.glas .zkarte,html.glas #dlListe > div,html.glas #geprueft:not(:empty){
   background:var(--inhalt-glas);-webkit-backdrop-filter:var(--glas-filter);backdrop-filter:var(--glas-filter);
   box-shadow:var(--inhalt-kante);border:none}
 html.glas #bib > aside{background:var(--spalte-glas)}
 html.glas #bib{gap:12px}
-/* unten so viel Rand wie über dem Player (glasschicht.css), die Rundung bleibt sichtbar, der Inhalt rollt in der Spalte */
+/* at the bottom as much margin as above the player (glasschicht.css), the rounding stays visible, the content scrolls in the column */
 html.glas #bib > aside{margin:0 0 calc(var(--fuss-h,140px) + var(--unter-h,0px) + 24px) 12px;border-radius:22px;padding-top:6px;
   padding-left:18px;padding-right:12px;padding-bottom:16px}
 html.glas #bib > .liste{margin:0 12px 12px 0;border-radius:22px}
-/* Kopfzeile der Liste: bleibt stehen, die Zeilen darunter verschwimmen statt durchzuscheinen */
+/* List header: stays in place, the rows below blur instead of showing through */
 html.glas thead th{background:var(--inhalt-kopf);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
 html.glas thead th:first-child{border-top-left-radius:22px}
 html.glas thead th:last-child{border-top-right-radius:22px}
@@ -110,7 +110,7 @@ html.glas #dlListe > div{border-radius:20px;padding:4px 12px;overflow:hidden}
 html.glas #geprueft:not(:empty){border-radius:20px;padding:2px 18px 6px;max-width:1000px}
 html.glas #geprueft > .posten:first-child{border-top:none}
 
-/* ---------- Kopf (Material, Segment und Kapseln aus glasschicht.css) */
+/* ---------- Header (material, segmented control and capsules from glasschicht.css) */
 .marke{font-size:15px;font-weight:600;letter-spacing:-.01em;text-transform:none}
 html.glas .reiter button{font-weight:500}
 html.glas #suche{border:none;background:var(--fuellung)}
@@ -123,7 +123,7 @@ html.glas .tastenknopf{color:var(--leise)}
 html.glas .tastenknopf:hover{color:var(--text);background:var(--fuellung2)}
 #filterKnopf{padding:5px 12px}
 
-/* ---------- Filterspalte */
+/* ---------- Filter column */
 aside{border-right:none}
 aside h3,thead th,.dltag,.tkgruppe h3,.ezeile.ekopf{text-transform:none;letter-spacing:0}
 aside h3{font-size:13px;font-weight:600;color:var(--text);margin:18px 0 7px}
@@ -143,8 +143,8 @@ aside input,aside select{background:var(--feld);border:none;box-shadow:inset 0 0
 #zuruecksetzen{border:none;border-radius:999px;background:var(--fuellung);color:var(--text)}
 #zuruecksetzen:hover{background:var(--fuellung2)}
 input,select{border-radius:8px}
-/* linke Spalte (24.10.2026): Auswahl blau, sonst kein Blau; Segment wie die übrigen, Marken leicht blau getönt.
-   Blasse Chips (0 Treffer) mindestens 3:1 gegen die Spalte */
+/* left column: selection blue, no blue otherwise; segmented control like the others, badges tinted slightly blue.
+   Faded chips (0 matches) at least 3:1 against the column */
 #filter{--sp-text:var(--text); --sp-leise:#5f5f64; --sp-blass:#828287; --sp-hover:var(--fuellung); --sp-ort-an:rgba(120,120,128,.16);
   --sp-marke:var(--signal-weich); --sp-an:var(--signal); --sp-an-text:#ffffff; --sp-raus:var(--nein);
   --sp-spur:var(--segment-spur); --sp-daumen:var(--segment-daumen); --sp-daumen-text:var(--segment-text); --sp-daumen-schatten:var(--segment-schatten);
@@ -155,10 +155,10 @@ html.glas #filter .aktivzeile{-webkit-backdrop-filter:blur(14px);backdrop-filter
   #filter{--sp-leise:#a9a9af; --sp-blass:#7d7d84; --sp-ort-an:rgba(120,120,128,.26); --sp-an-text:#06213f; --sp-klebe:rgba(36,36,40,.9)}
 }
 
-/* ---------- Liste: schwebende Glasfläche (siehe ALL IN oben), Zeilen mit Haarlinien */
+/* ---------- List: floating glass surface (see ALL IN above), rows with hairlines */
 thead th{font-size:12px;font-weight:600;color:var(--leise);border-bottom:.5px solid var(--linie2);padding:10px 8px 8px}
 thead th.sortiert{color:var(--text)}
-/* Aktionsspalte so breit wie ihre vier Knöpfe (135 px gemessen), der Rest geht an den Namen */
+/* Action column as wide as its four buttons (135 px measured), the rest goes to the name */
 #bib col.sp-akt{width:152px!important}
 tbody tr{border-bottom:.5px solid var(--linie)}
 tbody tr:hover{background:var(--flaeche)}
@@ -177,8 +177,8 @@ tr.aktiv .spiel{background:var(--signal);color:var(--auf-signal)}
 .skelett td div{background:var(--fuellung);border-radius:4px}
 .aehnlichzeile{border-bottom:.5px solid var(--linie)}
 
-/* ---------- Player (Fuß): Abspielen als einzige Farbe der Leiste, alles andere neutral. Material, Kapseln, Segment und
-   Schalter kommen aus glasschicht.css */
+/* ---------- Player (player bar): Play is the only color in the bar, everything else neutral. Material, capsules,
+   segmented control and switches come from glasschicht.css */
 #jetzt .t{font-size:14px;font-weight:600;letter-spacing:-.005em;line-height:1.35}
 #jetzt .d{font-size:12px;line-height:17px}
 #jetzt .werte{color:var(--fuss-text)}
@@ -190,12 +190,12 @@ html.glas footer .fusunter:hover:not(:disabled){background:var(--fuellung2)}
 .fdetails{color:var(--fuss-leise)}
 .korr input,.korr select,#jetzt .notizzeile input{background:var(--fuss-feld);border-radius:6px}
 
-/* ---------- Menüs, Popover, Meldungen (Material aus glasschicht.css) */
+/* ---------- Menus, popovers, messages (material from glasschicht.css) */
 .pleintrag:hover{background:var(--fuellung)}
 .tkgruppe h3{font-size:13px;color:var(--text);border-bottom:.5px solid var(--linie2)}
 .tkgruppe kbd{border:none;background:var(--fuellung);border-radius:5px}
 
-/* ---------- Netz, Zufall, Downloads, Einstellungen: Karten und Abschnitte als Glas (ALL IN oben) */
+/* ---------- Web, Random, Downloads, Settings: cards and sections as glass (ALL IN above) */
 #netz,#zufall,#downloads,#einst{padding-left:22px;padding-right:22px}
 #netz input,#zufall input,#downloads input,#netz select,#zufall select,#downloads select{background:var(--feld);border:none;box-shadow:inset 0 0 0 .5px var(--linie2)}
 #netz button,#zufall button,#downloads button,#einst button{border-color:var(--linie2)}
@@ -213,14 +213,14 @@ html.glas .zkarte{border-radius:22px}
 .zknoepfe button{border:none;border-radius:999px;background:var(--fuellung);color:var(--text)}
 .zknoepfe button:hover{background:var(--fuellung2)}
 .zknoepfe .inlib{background:var(--signal);color:var(--auf-signal)}
-/* Stilkarten deckend, nicht Glas: durch Kartenglas schien das blaue Farbfeld und färbte die braune Werkstatt kalt */
+/* Style cards opaque, not glass: the blue color field shone through card glass and turned the brown Workshop cold */
 html.glas .stiloption{border-radius:18px;background:var(--inhalt-deckend);border:none;padding:10px;box-shadow:var(--inhalt-kante)}
 html.glas .stiloption[aria-pressed=true]{border:none;padding:10px;box-shadow:var(--inhalt-kante),0 0 0 2px var(--signal)}
 html.glas .stiloption[aria-pressed=true] .haken{top:102px;right:12px}
 .muster{border:none;border-radius:10px}
 .wenigglas{margin-top:18px}
 .netztitel{text-transform:none;letter-spacing:0;font-size:13px}
-/* Knöpfe im Inhalt: Kapseln mit leichter Füllung statt Rahmen */
+/* Buttons in the content: capsules with a light fill instead of a border */
 .posten button:not(.textknopf),.netzkopf button,.zkarte button:not(.textknopf),#downloads button:not(.spiel):not(.textknopf),
 .ezeile button:not(.spiel),.leerknoepfe button,.hinweis button,.ladung button,.lizenzansicht button:not(.textknopf){
   border:none;border-radius:999px;background:var(--fuellung);color:var(--text);padding:4px 11px}
@@ -228,12 +228,12 @@ html.glas .stiloption[aria-pressed=true] .haken{top:102px;right:12px}
 .ezeile button:not(.spiel):hover,.leerknoepfe button:hover,.hinweis button:hover,.ladung button:hover,.lizenzansicht button:not(.textknopf):hover{background:var(--fuellung2)}
 .zkarte .herzknopf.an{color:var(--signal)}
 
-/* ---------- Fallbacks des Inhaltsglases (die der Leisten und Menüs stehen in glasschicht.css) */
+/* ---------- Fallbacks for the content glass (those for the bars and menus are in glasschicht.css) */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   html.glas #bib > aside,html.glas #bib > .liste,html.glas #netzspalten > section,html.glas .kachel,html.glas .zufallkopf,
   html.glas .zkarte,html.glas #dlListe > div,html.glas .stiloption,html.glas #geprueft:not(:empty),html.glas thead th{background:var(--inhalt-deckend)}
 }
-/* Transparenz reduzieren: macOS-Einstellung oder eigener Schalter; der farbige Grund bleibt, die Flächen werden deckend */
+/* Reduce transparency: macOS setting or our own switch; the colored background stays, the surfaces become opaque */
 @media (prefers-reduced-transparency:reduce){
   html.glas #bib > aside,html.glas #bib > .liste,html.glas #netzspalten > section,html.glas .kachel,html.glas .zufallkopf,
   html.glas .zkarte,html.glas #dlListe > div,html.glas .stiloption,html.glas #geprueft:not(:empty),html.glas thead th{background:var(--inhalt-deckend);
@@ -242,7 +242,7 @@ html.glas .stiloption[aria-pressed=true] .haken{top:102px;right:12px}
 html.glas.wenig-glas #bib > aside,html.glas.wenig-glas #bib > .liste,html.glas.wenig-glas #netzspalten > section,html.glas.wenig-glas .kachel,
 html.glas.wenig-glas .zufallkopf,html.glas.wenig-glas .zkarte,html.glas.wenig-glas #dlListe > div,html.glas.wenig-glas .stiloption,
 html.glas.wenig-glas #geprueft:not(:empty),html.glas.wenig-glas thead th{background:var(--inhalt-deckend);-webkit-backdrop-filter:none;backdrop-filter:none}
-/* Kontrast erhöhen: Flächen deckend, kräftigere Linien, Nebentexte eine Stufe dunkler */
+/* Increase contrast: opaque surfaces, stronger lines, secondary text one step darker */
 @media (prefers-contrast:more){
   :root{--glas:rgba(250,250,252,.96);--glas-deckend:rgba(250,250,252,.98);--inhalt-glas:var(--inhalt-deckend);--inhalt-kopf:var(--inhalt-deckend);
     --linie:rgba(60,60,67,.30);--linie2:rgba(60,60,67,.45);--leise:#3c3c40;--sehrleise:#48484c;
@@ -253,14 +253,14 @@ html.glas.wenig-glas #geprueft:not(:empty),html.glas.wenig-glas thead th{backgro
     --leise:#d1d1d6;--sehrleise:#c0c0c5;--fuss-leise:#d1d1d6;--fuss-linie:rgba(255,255,255,.34);--leiste-leise:#d1d1d6;--fuellung:rgba(120,120,128,.36)}
 }
 
-/* ---------- schmal: die Filterspalte liegt dann als Ebene über der Liste und wird dichter */
+/* ---------- narrow: the filter column then lies as a layer over the list and gets denser */
 @media (max-width:860px){
   html.glas #bib > .liste{margin-left:12px}
   html.glas #bib > aside.offen{background:var(--glas-dicht);margin-right:12px}
 }
 @media (max-width:560px){
   html.glas #bib > .liste{margin:0 8px 8px}
-  /* unten Platz für den Player lassen wie breit (Prüfung 24.10.: bei 390 px lag „Mehr“ und alles darunter unter dem
-     Player, Scrollen half nicht, weil die Spalte bis unter den Fuß reichte) */
+  /* leave room for the player at the bottom, as when wide (check: at 390 px "More" and everything below it lay under the
+     player, scrolling did not help because the column reached below the player bar) */
   html.glas #bib > aside{margin:0 8px calc(var(--fuss-h,140px) + var(--unter-h,0px) + 16px)}
 }

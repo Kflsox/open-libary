@@ -1,18 +1,18 @@
-/* Grundriss: Aufbau der Open Libary ohne Aussehen. Farben, Schriften, Rundungen, Abstände kommen aus der Stildatei
-   (stile/<name>.css), die nach dieser geladen wird und die Variablen unten setzt oder Regeln überschreibt. */
+/* Layout: the structure of Open Libary without its look. Colors, fonts, corner radii, spacing come from the style file
+   (stile/<name>.css), which loads after this one and sets the variables below or overrides rules. */
 :root{
   --grund:#fff; --flaeche:#eee; --zeile:#ddd; --linie:#ccc; --linie2:#bbb;
   --text:#000; --leise:#555; --sehrleise:#888; --signal:#f00; --auf-signal:#fff; --signal-hell:#fdd;
   --ok:#080; --warn:#a80; --nein:#a00;
   --leiste:var(--grund); --leiste-text:var(--text); --leiste-leise:var(--leise); --leiste-linie:var(--linie);
   --fuss:var(--flaeche); --fuss-text:var(--text); --fuss-leise:var(--leise); --fuss-linie:var(--linie);
-  --fuss-warn:var(--warn);   /* Warnfarbe auf der Fußfläche (Fuß und Unterlage); Stile mit farbigem Fuß setzen sie hell */
+  --fuss-warn:var(--warn);   /* Warning color on the player bar surface (player bar and backing track); styles with a colored player bar set it light */
   --welle-an:var(--signal); --welle-aus:var(--sehrleise); --welle-linie:var(--linie);
   --schrift:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Roboto, Ubuntu, sans-serif;
   --schrift-name:var(--schrift); --schrift-marke:var(--schrift);
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
   --groesse:13px; --rund:2px; --zeile-hoch:6px; --seite-breit:260px;
-  --rund-knopf:var(--rund); --fuss-fuellung:rgba(127,127,127,.18);   /* Glas, 24.10.2026: Rundung der Fußknöpfe, Füllung bei Hover und an */
+  --rund-knopf:var(--rund); --fuss-fuellung:rgba(127,127,127,.18);   /* Glass: rounding of the player bar buttons, fill on hover and when on */
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--grund);color:var(--text);font:var(--groesse)/1.4 var(--schrift)}
@@ -27,7 +27,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--signal);ou
 .zahl{font-family:var(--mono);font-variant-numeric:tabular-nums}
 
 #app{display:grid;grid-template-rows:auto 1fr auto auto;height:100vh;
-  grid-template-columns:minmax(0,1fr)}     /* vierte Zeile: Unterlage über dem Fuß (Paket 9); Spalte nie breiter als das Fenster (bei 390 px war die Seite 403 bis 499 px breit, Gesamtprüfung 24.10.) */
+  grid-template-columns:minmax(0,1fr)}     /* fourth row: backing track above the player bar; column never wider than the window (at 390 px the page was 403 to 499 px wide) */
 header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:10px 16px;border-bottom:1px solid var(--linie)}
 .marke{font-family:var(--schrift-marke);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:12px}
 .reiter{display:flex}
@@ -48,11 +48,11 @@ aside input,aside select{background:transparent;border-color:var(--leiste-linie)
 .chip[aria-pressed=true] .n{color:var(--auf-signal);opacity:.75}
 .chip.raus{border-color:var(--nein);color:var(--nein);text-decoration:line-through}
 .chip.raus .n{color:var(--nein);text-decoration:none;display:inline-block;opacity:1}
-/* Chip mit Minus: das Minus erscheint beim Drüberfahren rechts und schließt aus; bei Ausgeschlossenem bleibt es sichtbar.
-   Es liegt über dem Zwischenraum und dem Anfang des Nachbarn, statt Platz zu nehmen: vorher sprang ein Chip am
-   Zeilenende beim Drüberfahren in die nächste Zeile, und der Klick ging ins Leere (Test 20.10.: 10 von 90 Chips bei
-   1440 px). Jede Chip-Reihe hält rechts 20 px frei, damit das Minus des letzten Chips dort Platz hat; bei
-   ausgeschlossenen Chips steht es fest und nimmt echten Platz. */
+/* Chip with minus: the minus appears on the right on hover and excludes; on excluded chips it stays visible.
+   It lies over the gap and the start of the neighbor instead of taking space: before, a chip at the end of a row
+   jumped to the next row on hover and the click went nowhere (test: 10 of 90 chips at
+   1440 px). Every chip row keeps 20 px free on the right so the minus of the last chip has room; on
+   excluded chips it stays fixed and takes real space. */
 #filter .chips{padding-right:20px}
 .chipgruppe{display:inline-flex;align-items:stretch;position:relative}
 .chipminus{display:none;position:absolute;left:100%;top:0;bottom:0;z-index:2;width:20px;padding:0;
@@ -64,7 +64,7 @@ aside input,aside select{background:transparent;border-color:var(--leiste-linie)
 .chipgruppe:hover .chip,.chipgruppe.raus .chip{border-top-right-radius:0;border-bottom-right-radius:0}
 .chipminus:hover{background:var(--nein);border-color:var(--nein);color:#fff}
 .chipgruppe.raus .chipminus{border-color:var(--nein);color:var(--nein)}
-/* gehoer-Filter: Chips mit 0 blass (Messung fehlt noch), darunter eine leise Zeile, wie viele Samples den Wert haben */
+/* gehoer filters: chips with 0 faded (analysis still missing), below them a quiet line saying how many samples have the value */
 .chips .chip.leer{opacity:.45}
 .abdeckung{font-size:11px;line-height:1.35;color:var(--leiste-leise);margin-top:4px}
 .abdeckung:empty{display:none}
@@ -72,7 +72,7 @@ aside input,aside select{background:transparent;border-color:var(--leiste-linie)
 .schaltchip.ruht{opacity:.6}
 .takterahmen{margin-top:6px}
 .takterahmen input[type=number]{width:58px}
-/* Länge: mindestens und höchstens (Paket 2), je Paar unteilbar; in der Filterspalte untereinander */
+/* Length: minimum and maximum, each pair unbreakable; stacked in the filter column */
 .laengerahmen{flex-wrap:wrap;column-gap:12px;row-gap:6px}
 .tasten{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
 .tasten .chip{text-align:center;padding:3px 0;font-family:var(--mono)}
@@ -105,7 +105,7 @@ td.wert{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .tags span{color:var(--leise);margin-right:6px}
 .tags span.gt{color:var(--text)}
 tbody tr.aktiv .tags span.gt{color:inherit}
-/* hinter gehoer-Werten: "?" unsicher, "g" gemessen (wie bei BPM und Tonart) */
+/* after gehoer values: "?" uncertain, .gz marks analyzed (as with BPM and key) */
 .gz{font-style:normal;color:var(--sehrleise);margin-left:3px}
 .fz{font-style:normal;color:var(--warn);margin-left:1px}
 td .unter{display:block;font-size:11px;color:var(--sehrleise);overflow:hidden;text-overflow:ellipsis}
@@ -128,10 +128,10 @@ tr:hover .aktionen,tr.aktiv .aktionen{opacity:1}
 .leerknoepfe{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 .leerknoepfe button{margin-top:0}
 
-/* Fuß, Aufbau seit Glas (24.10.2026): oben Abspielen, Titel mit zwei Zeilen, Wellenform, Aktionen in zwei Gruppen
-   (Sammeln: Herz, Verwerfen, Playlist; Datei: Finder, Pfad, Messen); darunter „Details“ (Nebensächliches zum Sample,
-   Taste i) und eine Leiste mit Fassung (Segment), Wiedergabe (Schalter) und Lautstärke. Vorher stand alles in einer
-   Zeile mit fünf Zeilen Titelblock. Rundung der Knöpfe aus --rund-knopf (Glas: Kapsel, sonst die Rundung des Stils) */
+/* Player bar, layout since Glass: on top Play, title with two lines, waveform, actions in two groups
+   (collect: heart, discard, playlist; file: Finder, path, analyze); below that "Details" (minor info about the sample,
+   key i) and a bar with Version (segmented control), playback (switches) and volume. Before, everything sat in one
+   row with a five-line title block. Button rounding from --rund-knopf (Glass: capsule, otherwise the style's rounding) */
 footer{border-top:1px solid var(--fuss-linie);display:grid;grid-template-columns:44px minmax(200px,320px) minmax(0,1fr) auto;
   grid-template-areas:"play jetzt welle aktionen" "play details leiste leiste";gap:6px 16px;
   align-items:center;padding:10px 16px;background:var(--fuss);color:var(--fuss-text);min-height:86px}
@@ -155,11 +155,11 @@ footer .fdetails:hover:not(:disabled){color:var(--fuss-text)}
 .fdetails[aria-expanded=true] svg{transform:rotate(180deg)}
 footer:not(.details) #jetzt .neben{display:none}
 .fusleiste{grid-area:leiste;display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;min-width:0}
-/* Segment, Halbtöne und Schalter stehen in einer Reihe; „gezogen wird: …“ bekommt darunter die ganze Breite der Leiste */
+/* Segmented control, semitones and switches sit in one row; "dragging: ..." gets the full width of the bar below them */
 .fusleiste .fassung{display:contents}
 .fusleiste .fassungzeile{order:10;flex:1 1 100%;min-height:0}
 .fusschalter{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
-/* Schalter im Fuß als Kapseln mit Punkt: hohl aus, gefüllt an (Zustand nicht nur über Farbe) */
+/* Switches in the player bar as capsules with a dot: hollow when off, filled when on (state not shown by color alone) */
 footer label.schalter{position:relative;margin:0;display:inline-flex;align-items:center;gap:6px;padding:1px 10px 1px 8px;
   border:1px solid var(--fuss-linie);border-radius:var(--rund-knopf);color:var(--fuss-leise);font-size:12px;line-height:18px;white-space:nowrap;
   transition:background-color .12s,transform .12s}
@@ -173,7 +173,7 @@ footer label.schalter:has(input:focus-visible){outline:2px solid var(--signal);o
 .fusleiste .lautstaerke{margin-left:auto}
 .lautstaerke span{min-width:3.6em;text-align:right;cursor:pointer;user-select:none}
 .lautstaerke input{width:96px;margin:0;cursor:pointer}
-/* Regler im Fuß und in der Unterlage: ruhige Spur, gefüllt bis zum Wert (--anteil setzt die Seite), runder Griff */
+/* Sliders in the player bar and the backing track: calm track, filled up to the value (the page sets --anteil), round handle */
 footer input[type=range],.unterlage input[type=range]{-webkit-appearance:none;appearance:none;height:18px;padding:0;border:none;
   background:none;cursor:pointer;--anteil:100%}
 footer input[type=range]:focus,.unterlage input[type=range]:focus{outline:none}
@@ -190,18 +190,18 @@ footer input[type=range]::-moz-range-thumb,.unterlage input[type=range]::-moz-ra
 #playKnopf svg{width:14px;height:14px;fill:currentColor}
 #jetzt .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--schrift-name)}
 #jetzt .d{color:var(--fuss-leise);font-size:12px;line-height:1.5}
-/* Herkunft der Werte („aus dem Dateinamen“, „gemessen“) gehört zu den Details; sonst steht „als Projekt“ noch in der Zeile */
+/* Source of the values ("from the file name", "analyzed") belongs in the details; otherwise "as project" would still sit in the row */
 footer:not(.details) #jetzt .werte .quelle{display:none}
 #jetzt .quelle{color:var(--fuss-leise);opacity:.75}
-#welle{width:100%;height:56px;display:block;cursor:text}   /* Paket 10: Klick springt, Ziehen markiert einen Ausschnitt */
+#welle{width:100%;height:56px;display:block;cursor:text}   /* Click jumps, drag marks a region */
 .wellenfeld{min-width:0}
 .pegelzeile{color:var(--fuss-leise);font-size:12px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .pegelzeile:empty{display:none}
 .pegelzeile .quelle{opacity:.75}
-/* Wechsel im Takt (Paket 8): klein zwischen den Schaltern, in den Fuß-Farben */
+/* Switch on the bar: small between the switches, in the player bar colors */
 footer select.wechselwahl{padding:1px 6px;font-size:12px;line-height:18px;background:var(--fuss-feld,var(--fuss));color:var(--fuss-text);
   border-color:var(--fuss-linie);border-radius:var(--rund-knopf)}
-/* Meldung und Ladeliste über dem Fuß statt auf der Wellenform (Glas, 24.10.2026: der Fuß ist je nach Stil 120 bis 340 px hoch) */
+/* Message and download list above the player bar instead of on the waveform (the player bar is 120 to 340 px tall depending on the style) */
 #meldung{position:fixed;bottom:calc(var(--fuss-h,86px) + var(--unter-h,0px) + 12px);left:50%;transform:translateX(-50%);background:var(--text);color:var(--grund);
   padding:6px 12px;border-radius:var(--rund);font-size:12px}
 
@@ -219,9 +219,9 @@ footer select.wechselwahl{padding:1px 6px;font-size:12px;line-height:18px;backgr
 .dateien .dn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fortschritt{font-family:var(--mono);font-size:12px;color:var(--signal)}
 
-/* Schmales Fenster: Kopf bricht um (Suche eine eigene Zeile), Filter liegen über der Liste in derselben Rasterzelle
-   statt fest unter einem angenommenen Kopf von 52 px (Test 20.10.: bei 390 px nur mit seitlichem Scrollen erreichbar,
-   der zweizeilige Kopf verdeckte die Überschriften der Filter; bei 720 px lag "Messen" außerhalb) */
+/* Narrow window: the header wraps (search on a row of its own), filters lie over the list in the same grid cell
+   instead of fixed under an assumed 52 px header (test: at 390 px reachable only by scrolling sideways,
+   the two-row header covered the filter headings; at 720 px "Analyze" was outside) */
 @media (max-width:860px){
   header{gap:8px 12px}
   #suche{order:5;flex:1 1 240px;max-width:none}
@@ -232,20 +232,20 @@ footer select.wechselwahl{padding:1px 6px;font-size:12px;line-height:18px;backgr
   aside.offen{display:block;z-index:5}
   #filterKnopf{display:inline-block!important}
   .sp-art,.sp-dauer,.sp-tags,.sp-liz{display:none}
-  /* Fuß gestapelt: Titel neben Abspielen, Wellenform über die ganze Breite, dann die Leiste, unten Details und Aktionen */
+  /* Player bar stacked: title next to Play, waveform across the full width, then the bar, details and actions at the bottom */
   footer{grid-template-columns:44px minmax(0,1fr);grid-template-areas:"play jetzt" "welle welle" "leiste leiste" "details aktionen"}
   .fusaktionen{align-self:center}}
 @media (max-width:560px){
   .sp-akt{display:none}
   .marke{display:none}
-  /* Projektschalter, Filter, ? und Suche teilen sich eine Zeile; mit 240 px Grundbreite rutschte die Suche in eine
-     eigene Zeile, der Kopf wurde 39 px höher und ? landete am rechten Rand außerhalb des Fensters (Prüfer 23.10.) */
+  /* Project switch, filters, ? and search share one row; with a 240 px base width the search slipped onto a row of
+     its own, the header grew 39 px taller and ? ended up at the right edge outside the window */
   #suche{flex-basis:130px}
-  /* Zufall-Segment: mit „aus meiner Bibliothekssuche“ brach der Knopf bei 390 px zweizeilig um, die Leiste war 50 px
-     hoch und breiter als das Fenster (Prüfer Paket 5); schmal heißt er nur „Bibliothekssuche“ */
+  /* Random segmented control: with "from my library search" the button wrapped onto two lines at 390 px, the bar was 50 px
+     tall and wider than the window; when narrow it only says "Library search" */
   #zTyp .zbreit{display:none}
   #zTyp button{padding:6px 7px;white-space:nowrap}
-  /* Reiter: enger, und wo sie trotzdem nicht passen (Partitur, Tracker), seitlich wischbar statt die Seite zu verbreitern */
+  /* Tabs: tighter, and where they still do not fit (Score, Tracker), swipeable sideways instead of widening the page */
   .reiter{max-width:100%;overflow-x:auto;scrollbar-width:none}
   .reiter button{padding:6px 7px;white-space:nowrap}
 }
@@ -254,8 +254,8 @@ footer select.wechselwahl{padding:1px 6px;font-size:12px;line-height:18px;backgr
 .warntext{color:var(--warn)!important}
 footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 
-/* Netz: zwei Quellen nebeneinander, Ladeliste darüber. Die Einzelsounds bekommen den breiteren Teil (ihre Tabelle hat
-   elf Spalten, die Sammlungen brechen als Text um) */
+/* Web: two sources side by side, download list above. The single sounds get the wider part (their table has
+   eleven columns, the collections wrap as text) */
 .netzspalten{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:32px;margin-top:16px}
 @media (max-width:1300px){.netzspalten{grid-template-columns:1fr}}
 .netztitel{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin:0 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -272,7 +272,7 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 .balken div{height:100%;background:var(--signal);transition:width .4s}
 .rueckfrage{border:1px solid var(--warn);padding:8px 10px;margin:6px 0;border-radius:var(--rund)}
 
-/* Netz: Startseite, Merkliste, Einzelsound-Tabelle, Ladeliste */
+/* Web: start page, saved list, single sound table, download list */
 .verlauf{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:10px 0 0;max-width:980px}
 .verlauf .chip{color:var(--text);border-color:var(--linie2)}
 .kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:14px 0 6px;max-width:980px}
@@ -307,9 +307,9 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 .ezeile.skelettzeile{display:block;padding-top:10px}
 .skelettzeile div{height:10px;width:70%;background:var(--flaeche);animation:puls 1.2s ease-in-out infinite}
 .mehr{margin:10px 0}
-/* Einzelsounds: Spalten nach der Breite des eigenen Kastens, nicht des Fensters. Vorher blieb für den Namen bei 1440 px
-   nichts übrig (feste Spalten 666 px, Kasten 620 px, Test 20.10.). Schmaler: erst Quelle und Tonart weg (die Quelle
-   steht im Tooltip des Namens), dann Relevanz, Art und BPM, ganz schmal auch die Länge */
+/* Single sounds: columns follow the width of their own box, not of the window. Before, nothing was left for the name at
+   1440 px (fixed columns 666 px, box 620 px). Narrower: first source and key go (the source is
+   in the name's tooltip), then relevance, type and BPM, and when very narrow the length too */
 .netzspalten > section:first-child{container-type:inline-size}
 @container (max-width:880px){
   .ezeile{grid-template-columns:18px 28px minmax(0,1fr) 54px 84px 40px 56px 92px 118px}
@@ -330,7 +330,7 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 .ladeliste .ladung{margin-bottom:6px;font-size:12px}
 .ladeliste .ladung b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px}
 .ladeliste .ladung button{font-size:11px;padding:1px 6px}
-/* je geladene Datei der Stand der gehoer-Messung */
+/* per downloaded file, the state of the gehoer analysis */
 .messung{margin:6px 0 4px;padding-top:4px;border-top:1px solid var(--linie)}
 .messzeile{display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline;padding:1px 0}
 .messzeile .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -341,7 +341,7 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 .messhinweis{flex-basis:100%;color:var(--leise);font-size:11px;line-height:1.35}
 .messung button{margin-top:3px}
 
-/* Zufall: eine große Karte, die man in FL Studio zieht */
+/* Random: one large card that you drag into FL Studio */
 #zufall{display:block;overflow-y:auto;padding:20px 20px 60px;min-height:0}
 .zufallkopf{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;max-width:980px}
 .zufallkopf input[type=number]{width:70px}
@@ -360,10 +360,10 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 .zknoepfe button{padding:8px 18px;font-size:14px}
 .zhilfe{max-width:760px}
 
-/* Einstellungen */
+/* Settings */
 #einst{display:block;overflow-y:auto;padding:16px 20px 60px;min-height:0}
-/* Zwei Gruppen (Kritik 24.10. abends): „Material“ mit Liquid Glass kommt dazu, „Farbe“ mit den fünf Farbstilen ersetzt sich
-   gegenseitig. Eine senkrechte Linie trennt sie, damit man den Unterschied sieht und nicht nur liest. */
+/* Two groups: "Material" with Liquid Glass is added on top, the five color styles in "Color" replace each
+   other. A vertical line separates them so the difference is seen and not only read. */
 .stilwahl{display:flex;flex-wrap:wrap;align-items:stretch;gap:14px 0;max-width:1260px}
 .stilgruppe{display:flex;flex-direction:column;gap:8px;min-width:0}
 .stilgruppe h4{margin:0;font-size:12px;font-weight:600;color:var(--leise)}
@@ -378,17 +378,17 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 }
 .stiloption{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left;padding:10px;border:1px solid var(--linie2)}
 .stiloption[aria-pressed=true]{border:2px solid var(--signal);padding:9px}
-/* Haken (24.10.2026): jede Karte ist ein Schalter; leerer Ring = aus, gefüllter Kreis mit Haken = an (nicht nur Farbe) */
-/* ungewählt ein echter leerer Ring in Schriftfarbe (vorher gefüllte graue Scheibe, kaum vom gewählten Zustand zu trennen),
-   er sitzt deshalb unter der Vorschau statt auf ihr: dort ist der Grund die Karte selbst und die Schriftfarbe trägt immer */
+/* Check marks: every card is a switch; empty ring = off, filled circle with a check = on (not only color) */
+/* unselected a real empty ring in the text color (before: a filled gray disc, hard to tell from the selected state),
+   so it sits below the preview instead of on it: there the background is the card itself and the text color always works */
 .stiloption .haken{position:absolute;top:102px;right:12px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
   background:transparent;box-shadow:inset 0 0 0 1.5px currentColor;pointer-events:none}
 .stiloption[aria-pressed=true] .haken{top:101px;right:11px;background:var(--signal);box-shadow:none}
 .stiloption .haken svg{width:14px;height:14px;fill:none;stroke:var(--auf-signal);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:0}
 .stiloption[aria-pressed=true] .haken svg{opacity:1}
-/* feste Höhe: wenn der Hinweis kommt, rutscht „Transparenz reduzieren“ nicht nach unten */
+/* fixed height: when the hint appears, "Reduce transparency" does not move down */
 .stilhinweis{height:20px;line-height:20px;margin:10px 0 0;color:var(--text);font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-/* ohne Glas nicht abgeblendet (abgeblendet hieß „geht nicht“, der Schalter wirkt aber vor); nur der Zusatz ist leiser */
+/* not dimmed without glass (dimmed meant "does not work", but the switch takes effect in advance); only the note is quieter */
 label.schalter.wenigglas{color:var(--text)}
 .wenigglas .quelle{margin-left:4px;color:var(--leise)}
 .stiloption b{font-size:14px;padding-right:30px}
@@ -399,8 +399,8 @@ label.schalter.wenigglas{color:var(--text)}
 .muster > span:nth-child(3){grid-column:1/-1}
 .muster i{display:block;height:5px;width:70%}
 .muster i:last-child{width:35%}
-/* Liquid Glass allein (ALL IN): alle Grundfarben sind fast gleich hell, das Muster zeigt deshalb den Aufbau: ruhiger
-   farbiger Grund, Filter und Liste als helle Glasflächen, darüber schwebend der Player als Kapsel mit blauem Abspielpunkt */
+/* Liquid Glass alone (ALL IN): all base colors are almost equally light, so the swatch shows the structure: calm
+   colored background, filters and list as light glass surfaces, above them the floating player as a capsule with a blue play dot */
 .stiloption[data-stil=glas] .muster{grid-template-rows:1fr 26px;gap:0 5px;padding:6px 6px 0;
   background:radial-gradient(70% 90% at 10% 0%,rgba(0,113,227,.30),transparent 70%),radial-gradient(60% 80% at 100% 40%,rgba(48,176,199,.26),transparent 70%),
     radial-gradient(70% 70% at 60% 110%,rgba(255,159,10,.20),transparent 70%),#e9ebf1}
@@ -412,12 +412,12 @@ label.schalter.wenigglas{color:var(--text)}
   background:rgba(250,250,252,.88)!important;box-shadow:0 2px 6px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.06)}
 .stiloption[data-stil=glas] .muster > span:nth-child(3)::before{content:"";position:absolute;left:5px;top:50%;width:10px;height:10px;
   margin-top:-5px;border-radius:50%;background:#0071e3}
-/* Liquid Glass mit Farbstil: die Glas-Vorschau zeigt die Kapsel in der Glasfarbe des gewählten Farbstils (--farbkapsel)
-   und den Abspielpunkt in dessen Signalfarbe, wie es dann wirklich aussieht. Ohne Farbstil bleibt sie wie oben. */
+/* Liquid Glass with a color style: the glass preview shows the capsule in the glass color of the chosen color style (--farbkapsel)
+   and the play dot in its signal color, as it will really look. Without a color style it stays as above. */
 .stilwahl.mitfarbe .stiloption[data-stil=glas] .muster > span:nth-child(3){background:var(--farbkapsel)!important;
   box-shadow:0 2px 6px rgba(0,0,0,.22),inset 0 .5px 0 rgba(255,255,255,.6),inset 0 0 0 .5px rgba(255,255,255,.25)}
 .stilwahl.mitfarbe .stiloption[data-stil=glas] .muster > span:nth-child(3)::before{background:var(--farbpunkt)}
-/* Farbstil bei an Glas: der Player schwebt in der Vorschau als kleine Kapsel in der Glasfarbe des Stils (--kapsel) über der Liste */
+/* Color style with glass on: in the preview the player floats as a small capsule in the style's glass color (--kapsel) over the list */
 .stilwahl.mitglas .stiloption:not([data-stil=glas]) .muster{grid-template-rows:1fr 26px}
 .stilwahl.mitglas .stiloption:not([data-stil=glas]) .muster > span:nth-child(1){grid-row:1 / 3;grid-column:1}
 .stilwahl.mitglas .stiloption:not([data-stil=glas]) .muster > span:nth-child(2){grid-row:1 / 3;grid-column:2;padding-bottom:22px}
@@ -425,7 +425,7 @@ label.schalter.wenigglas{color:var(--text)}
   margin:0 8px 6px;border-radius:999px;background:var(--kapsel)!important;opacity:.9;
   box-shadow:0 2px 6px rgba(0,0,0,.22),inset 0 .5px 0 rgba(255,255,255,.6),inset 0 0 0 .5px rgba(255,255,255,.25)}
 
-/* ---------- Favoriten, Playlists, Downloads */
+/* ---------- Favorites, playlists, downloads */
 .aktionen{opacity:1}
 .aktionen > *{opacity:0}
 tr:hover .aktionen > *,tr.aktiv .aktionen > *,.aktionen > .herzknopf.an{opacity:1}
@@ -462,11 +462,11 @@ button.klein:hover{border-color:var(--leiste-linie);color:var(--leiste-text)}
 .dltab td{padding:6px 8px;border-bottom:1px solid var(--linie)}
 .dltab .dlzeit{width:52px;text-align:right}
 .dltab .sp-akt{width:150px}
-/* Spalte Art bei breitem Fenster so breit, dass „ganzer Song“ ganz steht (bei 1728 px stand „ganzer So…“, die Namensspalte hatte Platz) */
+/* Type column in a wide window wide enough for "full song" to fit (at 1728 px it read "full so..." while the name column had room) */
 @media (min-width:1400px){ #bib col.sp-art{width:112px!important} }
 @media (max-width:700px){ .dltab .sp-art,.dltab .dlzeit{display:none} }
 
-/* Tastenkarte (Taste ?): Fläche über der Liste zwischen Kopf und Fuß; top und bottom setzt die Seite beim Öffnen */
+/* Keyboard shortcuts (key ?): a surface over the list between header and player bar; the page sets top and bottom when opening it */
 .tastenknopf{margin-left:auto;width:24px;height:24px;padding:0;border-color:transparent;color:var(--sehrleise);font-family:var(--mono)}
 .tastenknopf:hover{color:var(--text);border-color:var(--linie2)}
 .tastenkarte{position:fixed;left:0;right:0;z-index:45;overflow-y:auto;background:var(--grund);color:var(--text);
@@ -485,8 +485,8 @@ button.klein:hover{border-color:var(--leiste-linie);color:var(--leiste-text)}
 .tkgruppe kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--linie2);border-radius:var(--rund);padding:0 5px;
   color:var(--text);background:var(--flaeche)}
 
-/* Projektrahmen (Paket 1): Schalter im Kopf rechts neben den Reitern, Feld darunter. Schriftfarbe vom Kopf (Kobalt und
-   Lila haben einen farbigen Kopf); aus: gedämpft, an: Unterstrich in Schriftfarbe (eine Auszeichnung für „gilt gerade“). */
+/* Project frame: switch in the header to the right of the tabs, field below it. Text color from the header (Cobalt and
+   Violet have a colored header); off: muted, on: underline in the text color (one marker for "active now"). */
 .projekt{position:relative}
 .projektknopf{border:0;border-bottom:2px solid transparent;padding:6px 8px;font-family:var(--mono);
   font-size:12px;white-space:nowrap;border-radius:0}
@@ -509,11 +509,11 @@ input.ungueltig{border-color:var(--nein)!important;outline-color:var(--nein)}
 .textknopf{border:none;padding:0;color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;font-size:inherit}
 .textknopf:hover{color:var(--fuss-text)}
 
-/* Fassung (Paket 3): Umschalter Original · Projekt · frei im Fuß. Gewählt: Unterstrich in Schriftfarbe, dieselbe
-   Auszeichnung wie der Projektschalter im Kopf („gilt gerade“); Projekt ohne Rahmen gedämpft. */
-/* Zeile unter der Wellenform (neben den Knöpfen kostete sie die Wellenform bei 1280 px 142 von 195 px) */
+/* Version: switch Original · Project · custom in the player bar. Selected: underline in the text color, the same
+   marker as the project switch in the header ("active now"); Project without a frame muted. */
+/* Row below the waveform (next to the buttons it cost the waveform 142 of 195 px at 1280 px) */
 .fassung{display:flex;flex-wrap:wrap;align-items:center;gap:0 10px;min-width:0;font-size:12px;line-height:18px}
-/* Segment (seit Glas, 24.10.2026): gemeinsame Spur, die gewählte Stellung als Daumen in Schriftfarbe; vorher unterstrichen */
+/* Segmented control (since Glass): shared track, the selected position as a thumb in the text color; underlined before */
 .fassungwahl{display:inline-flex;gap:2px}
 footer .fassungwahl,.unterlage .fassungwahl{padding:1px;border:1px solid var(--fuss-linie);border-radius:var(--rund-knopf);background:var(--segment-spur,transparent)}
 footer .fassungwahl button,.unterlage .fassungwahl button{border:0;border-radius:var(--rund-knopf);padding:0 10px;font-size:12px;
@@ -525,21 +525,21 @@ footer .fassungwahl button.gesperrt{opacity:.5}
 .fassungfrei input[type=range]{width:84px;margin:0;accent-color:var(--fuss-text);cursor:pointer}
 .fassungfrei span{min-width:2.2em}
 footer .fassungfrei label.schalter{margin:0}
-/* eigene Zeile unter dem Umschalter, umbricht und wird nie abgeschnitten: „gezogen wird: …“ und die Hinweise müssen
-   lesbar sein (eine Zeile mit … schnitt bei 1280 px fast alles ab). Zwei Zeilen sind immer reserviert, damit der Fuß
-   beim Durchblättern ruhig bleibt; eine dritte kommt nur bei breiter Schrift (Tracker, 150 px Wellenfeld) dazu */
+/* a row of its own below the switch, wraps and is never cut off: "dragging: ..." and the hints must be
+   legible (one row with ... cut off almost everything at 1280 px). Two rows are always reserved so the player bar
+   stays calm while browsing; a third is only added with wide type (Tracker, 150 px waveform area) */
 .fassungzeile{flex:1 1 100%;min-width:0;min-height:36px;color:var(--fuss-text);overflow-wrap:anywhere;
   font-variant-numeric:tabular-nums}
 .fassungzeile.gedaempft{color:var(--fuss-leise)}
-/* in der App sind der Fuß-Text und „gezogen wird: …“ die Ziehflächen für das laufende Sample */
+/* in the app, the player bar text and "dragging: ..." are the drag areas for the current sample */
 html.app #jetzt,html.app .fassungzeile{cursor:grab}
 
-/* Unterlage (Paket 9): eine schmale Zeile direkt über dem Fuß, in den Fuß-Farben, durch eine Linie vom Fuß getrennt
-   wie Fuß und Liste. Nur sichtbar, wenn eine gesetzt ist. Auszeichnung wie die Fassung: die gewählte Art unterstrichen.
-   Der Name des Samples kürzt mit …, der Zustand rechts ebenso (voller Text beim Drüberfahren). */
+/* Backing track: a narrow row right above the player bar, in the player bar colors, separated from it by a line
+   like player bar and list. Only visible when one is set. Marked like the Version: the selected kind underlined.
+   The sample name shortens with ..., the state on the right too (full text on hover). */
 .unterlage{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px;min-width:0;padding:4px 16px;
   border-top:1px solid var(--fuss-linie);background:var(--fuss);color:var(--fuss-leise);font-size:12px;line-height:18px;
-  padding-right:max(16px, calc(100% - 100vw + 16px))}   /* ist die Seite schmal überbreit (Liste), bricht die Zeile im Fenster um */
+  padding-right:max(16px, calc(100% - 100vw + 16px))}   /* if the narrow page is slightly too wide (list), the row wraps inside the window */
 .unterlage .ukopf{color:var(--fuss-text);font-weight:600}
 .unterlage .fassungwahl{min-width:0}
 #uSample{max-width:24em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -551,15 +551,15 @@ html.app #jetzt,html.app .fassungzeile{cursor:grab}
 .ustatus{flex:1 1 14em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ustatus:empty{display:none}
 .textknopf.gesperrt{opacity:.5}
-/* „als Unterlage“ in der Schalterspalte: Schrift wie die Schalter daneben */
+/* "as backing track" in the switch column: same type as the switches next to it */
 footer .fusunter{border:1px solid var(--fuss-linie);border-radius:var(--rund-knopf);padding:1px 10px;text-decoration:none;
   color:var(--fuss-leise);font-size:12px;line-height:18px;background:none;white-space:nowrap}
 footer .fusunter:hover:not(:disabled){color:var(--fuss-text);background:var(--fuss-fuellung)}
 .projektfeld .punterlage{color:var(--leise)}
 .projektfeld .textknopf:hover{color:var(--text)}
-/* Paket 10: Ausschnitt und Notiz. Zeichen am Namen in der Liste, Notizzeile im Fuß mit anklickbaren Zeiten */
+/* Region and note. Mark at the name in the list, note row in the player bar with clickable times */
 td.name .marken:empty{display:none}
-td.name .marken{display:inline-flex;gap:3px;margin-right:5px;vertical-align:-1px;opacity:.65}   /* Farbe der Zeile, auch der aktiven */
+td.name .marken{display:inline-flex;gap:3px;margin-right:5px;vertical-align:-1px;opacity:.65}   /* Row color, also for the active row */
 .zmarke{display:inline-block;width:10px;height:10px;font-style:normal}
 .zmarke svg{display:block;width:10px;height:10px}
 #jetzt .notiz{color:var(--fuss-text);overflow-wrap:anywhere}
@@ -568,8 +568,8 @@ td.name .marken{display:inline-flex;gap:3px;margin-right:5px;vertical-align:-1px
 #jetzt .zeitmarke:hover{color:var(--fuss-text);text-decoration-thickness:2px}
 #jetzt .notizzeile input{width:100%;font-size:12px;padding:1px 5px;background:var(--fuss);color:var(--fuss-text);border-color:var(--fuss-linie)}
 #jetzt .notizzeile input::placeholder{color:var(--fuss-leise)}
-/* Paket 4: Verwerfen und Verlauf. Schon gehörte Namen gedämpft (die aktive Zeile behält ihre Farbe), Tageszeilen in
-   Gezogen wie die Tage in Downloads, Lizenz in Gezogen auch im schmalen Fenster (dort fehlt die Spalte) */
+/* Discard and history. Names already played muted (the active row keeps its color), day rows in
+   Dragged like the days in Downloads, license in Dragged also in the narrow window (the column is missing there) */
 tbody tr.gehoert:not(.aktiv) td.name .t{color:var(--leise)}
 tbody tr.tagkopf,tbody tr.tagkopf:hover{background:none;box-shadow:none}
 tbody tr.tagkopf td{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--leise);padding:18px 8px 6px;
@@ -580,16 +580,16 @@ td.name .liz.schmal,td.name .vzeit.schmal{display:none}
   td.name .vzeit.schmal{display:inline;font-variant-numeric:tabular-nums} }
 td.name .wegmarke{color:var(--leise)}
 #meldung [data-rueck]{color:inherit;cursor:pointer;background:none}
-/* Verwerfen im Fuß: Kreuz neben dem Herz, gesetzt (verworfen) in der Signalfarbe wie das Herz */
+/* Discard in the player bar: a cross next to the heart, when set (discarded) in the signal color like the heart */
 .wegknopf svg{width:12px;height:12px;stroke-width:1.8;stroke-linecap:round}
-/* schmal und dicht am Herz: zwischen 661 und 760 px passt die Knopfzeile sonst nicht mehr in eine Reihe (gemessen 24.10.) */
+/* narrow and close to the heart: between 661 and 760 px the button row would otherwise no longer fit on one line (measured) */
 footer .wegknopf{padding-left:8px;padding-right:8px}
-/* „+ Playlist“ heißt seit Paket 4 nur „+“ wie an der Zeile (Titel sagt den Rest): Herz, Kreuz und Plus stehen als
-   Gruppe, und das Kreuz kostet weder Wellenform (1280: 225 statt 198 px) noch eine Fußzeile (390, 680, Tracker 720) */
+/* "+ Playlist" is now just "+" as on the row (the title says the rest): heart, cross and plus stand as a
+   group, and the cross costs neither waveform (1280: 225 instead of 198 px) nor a player bar row (390, 680, Tracker 720) */
 #fPl{min-width:28px}
 .herzknopf.wegknopf.an svg{fill:none}
-/* Paket 5, Weiterstöbern: Pack als Link (unterstrichen erst beim Drüberfahren), Zeile „ähnlich wie“ über der Liste,
-   Merken-Meldung im Fuß und auf der Zufallskarte, ruhende Felder im Zufall bei „aus meiner Bibliothekssuche“ */
+/* Keep browsing: pack as a link (underlined only on hover), "similar to" row above the list,
+   save message in the player bar and on the random card, idle fields in Random with "from my library search" */
 .packlink{color:inherit;cursor:pointer;text-decoration:none}
 .packlink:hover{text-decoration:underline;text-underline-offset:2px}
 td.name .packlink:hover,.zpack .packlink:hover{color:var(--text)}
@@ -597,9 +597,9 @@ td.name .packlink:hover,.zpack .packlink:hover{color:var(--text)}
 .aehnlichzeile{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--linie);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .aehnlichzeile .aname{font-family:var(--schrift-name);font-weight:500}
 .aehnlichzeile .textknopf:hover{color:var(--text)}
-/* Pack-Zeile im Fuß einzeilig: „Pack · Ähnliche · Herkunft · Lizenz“. Nur der Packname kürzt mit … (voller Name im
-   Tooltip); Herkunft und Lizenz bleiben ganz, erst wenn sie allein nicht passen, schneidet das Zeilenende ab. Mit
-   Umbruch wäre der Fuß bei rund 40 % der Samples 18 px höher geworden (gemessen 24.10. in fünf Stilen). */
+/* Pack row in the player bar on one line: "Pack · Similar · Source · License". Only the pack name shortens with ... (full name
+   in the tooltip); source and license stay whole, only when they alone do not fit is the end of the line cut off. With
+   wrapping, the player bar would have grown 18 px taller for about 40 % of the samples (measured in five styles). */
 #jetzt .packzeile{display:flex;white-space:nowrap;min-width:0;overflow:hidden}
 #jetzt .packzeile .pteil{flex:0 1 auto;min-width:3em;overflow:hidden;text-overflow:ellipsis}
 #jetzt .packzeile .pteil:empty{display:none}
@@ -609,8 +609,8 @@ td.name .packlink:hover,.zpack .packlink:hover{color:var(--text)}
 .zkarte .merknotiz{align-self:center;margin-left:4px}
 .zufallkopf .ruht{opacity:.45}
 
-/* Paket 6: Mehrfachauswahl und Bearbeiten. Markiert: Signalfarbe schwach über dem Grund (in jedem Stil die eine
-   Farbe, die es schon gibt); die spielende Zeile behält ihr Aussehen und bekommt dazu einen Rahmen in der Signalfarbe. */
+/* Multiple selection and editing. Marked: faint signal color over the background (in every style the one
+   color that already exists); the playing row keeps its look and also gets a frame in the signal color. */
 tbody tr.markiert:not(.aktiv){background:var(--linie2);background:color-mix(in srgb,var(--signal) 15%,var(--grund))}
 tbody tr.markiert:not(.aktiv):hover{background:var(--linie2);background:color-mix(in srgb,var(--signal) 22%,var(--grund))}
 tbody tr.aktiv.markiert{outline:2px solid var(--signal);outline:2px solid color-mix(in srgb,var(--signal) 60%,transparent);outline-offset:-2px}
@@ -623,8 +623,8 @@ thead th .sortwahl.an{color:var(--text)}
 #jetzt .auswahlzeile{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #jetzt .ziehgriff{text-decoration:underline dotted;text-underline-offset:2px;cursor:grab}
 #jetzt .ziehgriff:hover{color:var(--fuss-text)}
-/* Bearbeiten: zwei Spalten Felder in der Breite der Fußspalte; ungültig und Fehler in der Warnfarbe des Fußes
-   (Rot liest sich auf Kobalt- und Lila-Blau nicht) */
+/* Edit: two columns of fields at the width of the player bar column; invalid and errors in the player bar's warning color
+   (red does not read on cobalt and violet blue) */
 .korr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 8px;margin-top:3px;font-size:12px}
 .korr label{display:flex;flex-direction:column;color:var(--fuss-leise);min-width:0;line-height:1.35}
 .korr label > span{display:flex;gap:6px;align-items:baseline;white-space:nowrap}
@@ -634,13 +634,13 @@ thead th .sortwahl.an{color:var(--text)}
 .korr .kauf{font-size:11px;color:var(--fuss-leise)}
 .korr.speichert{opacity:.55}
 .korrfuss{grid-column:1/-1;color:var(--fuss-leise);line-height:1.5}
-/* schmal ist die Seite in manchen Stilen breiter als das Fenster (417 bis 499 px bei 390); das Formular bleibt im
-   Sichtbaren: Fenster minus Rand 16, Play 44 und Abstand 14 links, Rand 16 rechts (Prüfer Paket 6) */
+/* when narrow, the page is wider than the window in some styles (417 to 499 px at 390); the form stays in
+   view: window minus margin 16, Play 44 and gap 14 on the left, margin 16 on the right */
 @media (max-width:860px){ .korr{max-width:calc(100vw - 90px)} }
 .korrfehler{color:var(--fuss-warn)}
 
-/* Paket 7: Lizenz pro Pack. Die Ansicht ersetzt die Liste (Tabelle wie die Liste, gleiche Linien und Schrift);
-   gewählter Entscheid in der Signalfarbe wie ein gedrückter Chip, Fehler und Splice-Hinweis in der Warnfarbe. */
+/* License per pack. The view replaces the list (table like the list, same lines and type);
+   the chosen decision in the signal color like a pressed chip, errors and the Splice note in the warning color. */
 #listenbereich.lizenzmodus > :not(#lizenzAnsicht){display:none!important}
 .lzkopf{padding:10px 12px 8px;border-bottom:1px solid var(--linie);display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
 .lzkopf strong{font-weight:600}
@@ -679,21 +679,21 @@ thead th .sortwahl.an{color:var(--text)}
 .lztabelle tr.lzgruppe:hover{background:none}
 .lztabelle tr.skelett td div{height:10px;background:var(--flaeche);border-radius:1px;animation:puls 1.2s ease-in-out infinite}
 .lzmehr{padding:10px 12px;font-size:12px}
-/* schmal: Herkunft und Grund fallen weg, damit Pack, Entscheid und Beleg ohne seitliches Scrollen passen */
+/* narrow: source and reason drop out so pack, decision and record fit without sideways scrolling */
 @media (max-width:860px){
   .lztabelle table{min-width:540px}
   .lztabelle .lz-herk,.lztabelle .lz-grund{display:none}
   .lztabelle col.lz-pack{width:auto}
   .lztabelle col.lz-beleg{width:30%}
 }
-/* über einer Playlist: ja · offen · nein, der aktive Teil kräftig */
+/* above a playlist: yes · unclear · no, the active part bold */
 .lizenzzeile .textknopf{color:var(--leise)}
 .lizenzzeile .textknopf:hover{color:var(--text)}
 .lizenzzeile .textknopf.an{color:var(--text);font-weight:600;text-decoration-style:solid}
 
-/* ---------- Linke Spalte (24.10.2026, VORSCHLAG-SEITENLEISTE.md): ruhig statt gleich laut. Fläche nur bei Auswahl, Zahlen
-   nur mit gesetzten Filtern (Klasse zahlen) oder beim Drüberfahren, Köpfe leiser als der Inhalt, Klappköpfe mit
-   Zusammenfassung. Farben als --sp-*, je Stil in seiner Datei gesetzt; Pfeil und Kreuz aus CSS, nie aus einer Schrift. */
+/* ---------- Left column: calm instead of equally loud. Surface only on selection, numbers
+   only with active filters (class zahlen) or on hover, headings quieter than the content, collapsible headings with a
+   summary. Colors as --sp-*, set per style in its file; arrow and cross from CSS, never from a font. */
 #filter{
   --sp-text:var(--leiste-text); --sp-leise:var(--leiste-leise); --sp-blass:var(--leiste-leise);
   --sp-hover:rgba(127,127,127,.14); --sp-ort-an:rgba(127,127,127,.18); --sp-marke:rgba(127,127,127,.16);
@@ -702,7 +702,7 @@ thead th .sortwahl.an{color:var(--text)}
   --sp-rund-chip:var(--rund); --sp-rund-seg:var(--rund); --sp-klebe:var(--leiste); --sp-linie:var(--leiste-linie); --sp-oben:10px;
   padding:var(--sp-oben) 14px 24px 16px}
 #filter .spaltenhinweis{font-size:11.5px;line-height:1.35;color:var(--sp-leise);margin:0 0 8px}
-/* gesetzte Filter: klebt beim Scrollen oben */
+/* active filters: stick to the top while scrolling */
 #filter .aktivzeile{position:sticky;top:calc(-1 * var(--sp-oben));z-index:3;display:flex;flex-wrap:wrap;gap:4px;align-items:center;
   margin:calc(-1 * var(--sp-oben)) -8px 8px;padding:var(--sp-oben) 8px 8px;background:var(--sp-klebe);border-bottom:1px solid var(--sp-linie)}
 #filter .aktivmarken{display:contents}
@@ -719,7 +719,7 @@ thead th .sortwahl.an{color:var(--text)}
 #filter #zuruecksetzen{margin:0 0 0 auto;width:auto;border:none;background:none;border-radius:0;padding:2px 0;font-size:12px;color:var(--sp-leise);
   text-decoration:underline;text-decoration-style:solid;text-decoration-color:currentColor;text-underline-offset:2px;box-shadow:none}
 #filter #zuruecksetzen:hover{color:var(--sp-text)}
-/* Orte: Textliste wie eine Mac-Seitenleiste */
+/* Places: text list like a Mac sidebar */
 #filter .orte{display:flex;flex-direction:column;margin:0 -6px}
 #filter .ortzeile{display:flex;align-items:center;position:relative;min-width:0}
 #filter .ort{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;border:none;border-radius:5px;padding:1.5px 6px;
@@ -730,7 +730,7 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .ort.an{background:var(--sp-ort-an);font-weight:600}
 #filter .ort.still{color:var(--sp-leise)}
 #filter .ort.neu{flex:none;color:var(--sp-leise);font-size:12px;margin-top:1px}
-/* umbenennen, löschen: erst nach kurzem Verweilen, damit ein schneller Klick auf die Zeile die Playlist wählt */
+/* rename, delete: only after a short hover, so a quick click on the row selects the playlist */
 #filter .ortknoepfe{display:flex;visibility:hidden;position:absolute;right:2px;top:0;bottom:0;align-items:center;gap:2px;background:var(--sp-klebe);border-radius:5px}
 #filter .ortzeile:hover .ortknoepfe{visibility:visible;transition:visibility 0s .6s}
 #filter .ortknoepfe:focus-within{visibility:visible}
@@ -741,7 +741,7 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .ortzeile.frage{display:block;font-size:12px;padding:2px 6px;color:var(--sp-text)}
 #filter .ortzeile.frage .textknopf{color:var(--sp-text)}
 #filter .ortzeile input{width:100%;font-size:12px;padding:2px 6px}
-/* Umschalter Alle | Loops | One-Shots und zwei Schalter */
+/* Switch All | Loops | One-Shots and two toggles */
 #filter .spaltensegment{display:grid;grid-template-columns:repeat(3,1fr);width:100%;margin-top:14px;padding:2px;
   background:var(--sp-spur);border-radius:calc(var(--sp-rund-seg) + 2px)}
 #filter .spaltensegment button{border:none;margin:0;padding:3px 0;border-radius:var(--sp-rund-seg)!important;font-size:12px;line-height:1.35;
@@ -753,13 +753,13 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .punkt::before{content:"";width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;flex:none;box-sizing:border-box}
 #filter .punkt[aria-pressed=true],#filter label.punkt:has(input:checked){color:var(--sp-text)}
 #filter .punkt[aria-pressed=true]::before,#filter label.punkt:has(input:checked)::before{background:currentColor}
-/* label.punkt hält das versteckte Feld: ohne position bezog es sich auf body und machte die Seite bei 390 px länger,
-   das Mausrad rollte dann nach dem Ende der Spalte die ganze Seite weg (Kopf und „alles lösen“ oben raus) */
+/* label.punkt holds the hidden input: without position it related to body and made the page longer at 390 px,
+   the mouse wheel then scrolled the whole page away after the end of the column (header and "clear all" off the top) */
 #filter label.punkt{position:relative}
 #filter label.punkt input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
 #filter label.punkt:has(input:focus-visible){outline:2px solid var(--signal);outline-offset:2px}
 #filter .punkt.ruht{opacity:.7}
-/* Gruppen und Köpfe: Kopf leiser als der Inhalt; rechts Zusammenfassung, Satz (Regel 6) oder ein Text-Schalter */
+/* Groups and headings: heading quieter than the content; on the right a summary, a sentence or a text switch */
 #filter .gruppe{margin-top:13px;border-radius:6px}
 #filter .gruppe.blitz{animation:spblitz .9s ease-out}
 @keyframes spblitz{from{background:var(--sp-hover)}to{background:transparent}}
@@ -781,24 +781,24 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .rahmenwahl select{padding:1px 4px;font-size:12px}
 #filter .gruppe[data-gruppe=groove],#filter .gruppe[data-gruppe=vibe],#filter .gruppe[data-gruppe=mehr]{margin-top:12px}
 #filter .gruppe[data-gruppe=groove]{margin-top:16px}
-/* Chips: Text ohne Fläche und Rahmen; Fläche nur bei Auswahl */
-/* Spalte 8 px: das Minus (12 px, links am Chip angehängt) liegt im Zwischenraum und höchstens auf dem Innenrand des
-   Nachbarn, nie auf seinem Text (Prüfung 24.10.: bei 2 px Abstand und 18 px Minus fing es den Klick auf den Anfang von
-   „UKG/Garage“, „Snare“, „Becken“ ab, in WebKit Kobalt deckte das Minus von Clap die Mitte von „Hat“) */
+/* Chips: text without surface and border; surface only on selection */
+/* Gap 8 px: the minus (12 px, attached left of the chip) lies in the gap and at most on the neighbor's inner
+   padding, never on its text (check: with a 2 px gap and an 18 px minus it caught clicks on the start of
+   "UKG/Garage", "Snare", "Cymbal"; in WebKit Cobalt the minus of Clap covered the middle of "Hat") */
 #filter .chips{display:flex;flex-wrap:wrap;gap:1px 8px;margin:0 -6px;padding-right:14px}
 #filter .chips + .chips{margin-top:3px}
 #filter .chip{border:none;background:none;box-shadow:none;border-radius:var(--sp-rund-chip);padding:2px 6px;font-size:12.5px;line-height:1.35;
   color:var(--sp-text);white-space:nowrap;font-weight:400;text-decoration:none;opacity:1}
 #filter .chip:hover{background:var(--sp-hover)}
 #filter .chip .n{display:none;margin-left:4px;font-size:10.5px;color:var(--sp-leise);font-family:inherit;font-variant-numeric:tabular-nums;opacity:1}
-/* Platz für fünf Stellen („12.345“, gemessen 36,8 bis 37,9 px bei 10,5 px in allen Stilen), damit der Chip gleich breit
-   bleibt, egal welche Zahl gerade dasteht */
+/* Room for five digits ("12,345", measured 36.8 to 37.9 px at 10.5 px in all styles), so the chip keeps the same
+   width whatever number is shown */
 #filter.zahlen .chip .n{display:inline-block;min-width:3.65em;text-align:left}
-/* Platzhalter für 0 und Ausgeschlossene: nimmt den Platz einer Zahl ein, zeigt nichts */
+/* Placeholder for 0 and excluded: takes the space of a number, shows nothing */
 #filter.zahlen .chip .n.nix{visibility:hidden}
 #filter .chipminus i{width:6px}
-/* ohne gesetzte Filter: die Zahl beim Drüberfahren als kleines Schild über dem Chip, ohne die Reihe zu verschieben
-   (inline sprang der Nachbar weg, und das Minus rutschte unter dem Zeiger davon) */
+/* without active filters: the number on hover as a small label above the chip, without shifting the row
+   (inline, the neighbor jumped away and the minus slid out from under the pointer) */
 #filter .chip{position:relative}
 #filter:not(.zahlen) .chipgruppe:hover .chip:not(.leer) .n:not(.nix),#filter:not(.zahlen) .tasten .chip:hover .n{display:block;position:absolute;z-index:4;left:50%;bottom:calc(100% - 1px);
   transform:translateX(-50%);margin:0;padding:0 5px;border-radius:4px;background:var(--sp-klebe);color:var(--sp-text);line-height:15px;
@@ -817,7 +817,7 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .mehrknopf:hover{background:var(--sp-hover);color:var(--sp-text)}
 #filter .mehrknopf::after{content:"";width:0;height:0;border-top:4px solid currentColor;border-left:3.5px solid transparent;border-right:3.5px solid transparent}
 #filter .mehrknopf[aria-expanded=true]::after{transform:rotate(180deg)}
-/* Tempo, Takte, Mehr: Eingaben in einer Zeile */
+/* Tempo, bars, more: inputs in one row */
 #filter .reihe{gap:6px}
 #filter .tempozeile input,#filter .takterahmen input,#filter .mehrzeile input[type=number]{width:52px;padding:3px 7px;font-size:12.5px;font-variant-numeric:tabular-nums}
 #filter .tempozeile .punkt{margin-left:auto}
@@ -834,7 +834,7 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .lizlink{margin-top:3px}
 #filter .lizlink .textknopf{font-size:12px;color:var(--sp-leise);text-decoration-style:solid}
 #filter .lizlink .textknopf:hover,#filter .lizlink .textknopf[aria-pressed=true]{color:var(--sp-text)}
-/* Tonart: Text im Raster, Dur oben, Moll mit etwas Luft darunter */
+/* Key: text in a grid, major on top, minor with some space below */
 #filter .tasten{display:grid;grid-template-columns:repeat(6,1fr);gap:0 2px;margin:0 -4px}
 #filter .tasten .chip{text-align:center;padding:2px 0;border-radius:var(--sp-rund-chip);font-family:inherit;font-variant-numeric:tabular-nums}
 #filter .tasten .chip:nth-child(13),#filter .tasten .chip:nth-child(13) ~ .chip:nth-child(-n+18){margin-top:5px}
@@ -842,12 +842,12 @@ thead th .sortwahl.an{color:var(--text)}
 .leermarken{display:block;margin-top:8px}
 @media (prefers-reduced-motion:reduce){#filter .gruppe.blitz{animation:none}#filter .kopfknopf.klapp::before{transition:none}}
 
-/* Warteschlange 1 (24.10.2026): Zeiger über der Wellenform kommt aus seite.html (zeigerWert); während eines Zugs gilt er
-   überall, damit die Maus die Welle verlassen darf, ohne dass Knöpfe darunter ihren Zeiger zeigen */
+/* The pointer over the waveform comes from seite.html (zeigerWert); during a drag it applies
+   everywhere, so the mouse may leave the waveform without buttons underneath showing their pointer */
 html.welle-zug body,html.welle-zug body *{cursor:inherit!important}
 
-/* Einstellungen: eigene Ordner und Freesound (Musiker-Test 03.11.2026). Tabelle statt Karten: ein Ordner ist eine Zeile
-   mit Pfad, Zahl und zwei Handgriffen */
+/* Settings: your folders and Freesound. Table instead of cards: a folder is a row
+   with path, count and two controls */
 .ordnertab{border-collapse:collapse;max-width:980px;width:100%;margin:0 0 10px}
 .ordnertab td{padding:6px 12px 6px 0;border-bottom:1px solid var(--linie2);vertical-align:baseline}
 .ordnertab .opfad{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}
@@ -868,14 +868,14 @@ html.welle-zug body,html.welle-zug body *{cursor:inherit!important}
 .knopflink:hover{border-color:var(--leise)}
 .fsschritte a{color:inherit;text-underline-offset:2px}
 #einst .einstabschnitt{margin-top:30px}
-/* Konten im Netz-Reiter (03.11.2026): eine Zeile, je Anbieter Name, Zustand, ein Handgriff */
+/* Accounts in the Web tab: one row, per provider name, state, one control */
 .konten{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;margin:2px 0 12px;font-size:13px}
 .konten .konto{display:inline-flex;gap:8px;align-items:baseline}
 .konten .konto.an b::after{content:"";display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:var(--ok);vertical-align:1px}
 .konten a{color:inherit}
 .nativ .ezeile[data-s]{cursor:grab}
 .ezeile.laedt{opacity:.6}
-/* Streifen „Von Looperman“ (Konten 03.11.2026): zuletzt übernommene Loops, Kachel = anhören und ziehen */
+/* Strip "From Looperman": recently imported loops, tile = preview and drag */
 .lmstreifen{margin:0 0 14px}
 .lmkopf{display:flex;gap:10px;align-items:baseline;margin:0 0 6px;font-size:13px}
 .lmreihe{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
@@ -888,3 +888,4 @@ html.welle-zug body,html.welle-zug body *{cursor:inherit!important}
 .lmwerte{font-size:12px;color:var(--leise);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lmleer{margin:0}
 label.ziehenwahl select{margin-left:8px}
+#spracheHinweis:empty{display:none}

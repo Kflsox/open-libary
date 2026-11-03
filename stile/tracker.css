@@ -1,5 +1,5 @@
-/* Tracker: wie ein alter Musik-Tracker. Flaschengrün fast schwarz, alles in Monospace, kein Farbakzent:
-   Auswahl ist eine helle, umgekehrte Zeile, Zahlen stehen in festen Spalten. */
+/* Tracker: like an old music tracker. Bottle green almost black, everything in monospace, no accent color:
+   selection is a light, inverted row, numbers sit in fixed columns. */
 :root{
   --grund:#0d1714; --flaeche:#13211c; --zeile:#d9e6d3; --linie:#1d2e28; --linie2:#2c433a;
   --text:#c9d8c4; --leise:#7f9a8c; --sehrleise:#55705f;
@@ -19,7 +19,7 @@ aside h3{color:var(--leise);letter-spacing:.15em;font-weight:400}
 aside h3::before{content:"// "}
 .chip{border:none;padding:1px 4px}
 .chip:hover{background:var(--flaeche)}
-/* linke Spalte (24.10.2026): Köpfe als Kommentar wie bisher, Auswahl als umgekehrte Zeile */
+/* left column: headings as comments as before, selection as an inverted row */
 #filter{--sp-blass:#58735f; --sp-hover:var(--flaeche); --sp-ort-an:var(--flaeche); --sp-marke:var(--flaeche); --sp-spur:var(--flaeche);
   --sp-daumen:var(--zeile); --sp-daumen-text:var(--grund); --sp-linie:var(--linie2)}
 #filter .kopf{font-weight:400;letter-spacing:.12em}
@@ -38,15 +38,15 @@ tbody tr.aktiv .spiel{background:#0d1714;color:#d9e6d3;border-color:#0d1714}
 .liz{border:none;padding:0}
 .liz::before{content:"["} .liz::after{content:"]"}
 
-/* Mit Liquid Glass (Klasse glas, Material aus glasschicht.css): Kopf und Player als dunkles Flaschenglas, kaum Glanz,
-   eine grünlich-blasse Lichtkante; Rundungen klein, damit es ein Tracker bleibt. */
+/* With Liquid Glass (class glas, material from glasschicht.css): header and player as dark bottle glass, barely any sheen,
+   a pale greenish light edge; small corner radii so it stays a tracker. */
 html.glas{
   --glas:rgba(10,20,16,.78); --glas-deckend:#0a1210; --glas-dicht:rgba(12,22,18,.95); --glas-probe:#0a1210;
   --glas-schatten:0 10px 34px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.4);
   --glas-innen:inset 0 .5px 0 rgba(201,216,196,.20),inset 0 0 0 .5px rgba(201,216,196,.08);
   --menue-schatten:0 12px 40px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.3);
-  /* Lichtkante in Hellgrün kräftiger und ein Schimmer unter dem Player: dunkles Glas auf dunklem Grund war sonst kaum als
-     Glas zu lesen (Kritik 24.10. abends) */
+  /* Light edge in light green stronger and a glow under the player: dark glass on a dark background was hard to read as
+     glass otherwise */
   --glanz:.06; --kante1:rgba(200,245,205,.66); --kante2:rgba(200,245,205,.08); --kante3:rgba(200,245,205,.30);
   --glas-schimmer:radial-gradient(46% 100% at 50% 100%,rgba(150,225,165,.17),transparent 78%);
   --glas-rund:12px; --glas-rund-fuss:14px; --glas-knopf-rund:6px;
@@ -56,8 +56,8 @@ html.glas{
   --welle-aus:rgba(201,216,196,.32);
   --play-schatten:0 2px 8px rgba(0,0,0,.4);
 }
-/* Player mit Glas: Monospace ist breiter, die Kapsel kostet Rand; damit die Lautstärke wie bei den anderen Stilen in der
-   Zeile der Wiedergabeknöpfe bleibt (bei 1280 px rutschte sie in eine dritte Zeile), enger gesetzt */
+/* Player with glass: monospace is wider and the capsule costs margin; set tighter so the volume stays in the row of
+   the playback buttons as in the other styles (at 1280 px it slipped into a third row) */
 html.glas footer{padding:10px 12px;gap:6px 12px;grid-template-columns:44px minmax(180px,300px) minmax(0,1fr) auto}
 html.glas .fusleiste{gap:6px 10px}
 html.glas footer label.schalter,html.glas footer .fusunter{padding:2px 8px 2px 7px}

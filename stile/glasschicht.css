@@ -1,15 +1,15 @@
-/* Glasschicht (24.10.2026): das Liquid-Glass-Material als eigene Ebene, die auf jeden Stil gelegt werden kann.
-   Wirkt nur mit der Klasse glas am Wurzelelement (gesetzt im Kopf der Seite aus stil.txt, z. B. "glas+kobalt").
-   Ladereihenfolge: grundriss.css, glasschicht.css, dann die Stildatei. Jeder Stil setzt seine Glastöne als Variablen in
-   einem Block html.glas{...} (Tönung, Lichtkante, Glanz, Schatten, Füllungen) und kann hier Regeln mit gleicher
-   Schärfe überschreiben. Die Vorgaben unten sind das neutrale Glas. Grundlage: scratchpad/glas/skill/GRUNDLAGE.md
-   (Skill apple-liquid-glass von xenitV1, MIT, und Apples HIG). Glas nur auf der Bedienebene: Kopf, Player, Unterlage,
-   Menüs, Popover. Der Stil "glas" allein legt zusätzlich Glas auf den Inhalt (siehe glas.css, ALL IN).
-   WebKit malt keine Lichtbrechung per SVG-Filter: reines Blur-Glas mit Lichtkante und Glanz. */
+/* Glass layer: the Liquid Glass material as a layer of its own that can be put on any style.
+   Only active with the class glas on the root element (set in the page head from stil.txt, e.g. "glas+kobalt").
+   Load order: grundriss.css, glasschicht.css, then the style file. Each style sets its glass tones as variables in
+   an html.glas{...} block (tint, light edge, sheen, shadow, fills) and can override rules here with equal
+   specificity. The defaults below are the neutral glass. Basis: the apple-liquid-glass skill by xenitV1 (MIT)
+   and Apple's HIG. Glass only on the control layer: header, player, backing track,
+   menus, popovers. The style "glas" on its own also puts glass on the content (see glas.css, ALL IN).
+   WebKit does not paint refraction through SVG filters: plain blur glass with light edge and sheen. */
 :where(html.glas){
-  --glas:rgba(250,250,252,.78);          /* Tönung von Kopf, Player, Unterlage */
-  --glas-dicht:rgba(250,250,252,.94);    /* Menüs, Popover, Meldung (textlastig, also dichter) */
-  --glas-deckend:var(--glas-dicht);      /* Ersatz ohne Filter: Transparenz reduzieren, kein backdrop-filter, mehr Kontrast */
+  --glas:rgba(250,250,252,.78);          /* Tint of header, player, backing track */
+  --glas-dicht:rgba(250,250,252,.94);    /* Menus, popovers, message (text-heavy, so denser) */
+  --glas-deckend:var(--glas-dicht);      /* Fallback without filter: reduce transparency, no backdrop-filter, more contrast */
   --glas-filter:saturate(180%) blur(28px);
   --glas-schatten:0 8px 26px rgba(0,0,0,.10),0 1px 3px rgba(0,0,0,.06);
   --glas-innen:inset 0 .5px 0 rgba(255,255,255,.85),inset 0 0 0 .5px rgba(255,255,255,.35);
@@ -20,33 +20,33 @@
   --play-schatten:0 2px 8px rgba(0,0,0,.18);
   --bahn:cubic-bezier(.22,1,.36,1);
 }
-/* Rundung der Kapselknöpfe; grundriss setzt --rund-knopf am :root, darum hier mit Klasse (Stile ändern --glas-knopf-rund) */
+/* Rounding of the capsule buttons; grundriss sets --rund-knopf on :root, so here with a class (styles change --glas-knopf-rund) */
 html.glas{--rund-knopf:var(--glas-knopf-rund,999px)}
 
-/* ---------- Aufbau: Kopf und Fuß schweben, der Inhalt läuft unter dem Fuß durch */
+/* ---------- Layout: header and player bar float, the content runs under the player bar */
 html.glas #app > main{grid-row:2 / -1;grid-column:1}
 html.glas #app > header{grid-row:1;z-index:30}
 html.glas #unterlage{grid-row:3;grid-column:1;z-index:31;align-self:end}
 html.glas #app > footer{grid-row:4;grid-column:1;z-index:31}
-/* unten so viel Platz, dass die letzte Zeile über dem Fuß stehen kann (Höhen setzt die Seite: --fuss-h, --unter-h) */
+/* enough room at the bottom for the last row to sit above the player bar (the page sets the heights: --fuss-h, --unter-h) */
 html.glas .liste,html.glas #netz,html.glas #zufall,html.glas #downloads,html.glas #einst{
   padding-bottom:calc(var(--fuss-h,140px) + var(--unter-h,0px) + 28px)}
-/* Filterspalte (Kritik 24.10. abends): endet 12 px über dem Player, statt unter ihm durchzulaufen. Vorher stand im Spalt
-   unter dem Player abgeschnittener Filtertext („4 Takte 246“, „Swing“), und bei Partitur ragte ein Chip über den Rand.
-   Gilt auch für Glas pur, dort ist so die untere Rundung der schwebenden Spalte zu sehen. Ihr Inhalt rollt in ihr. */
+/* Filter column: ends 12 px above the player instead of running under it. Before, the gap under the
+   player showed cut-off filter text ("4 bars 246", "Swing"), and in Score a chip stuck out over the edge.
+   Also applies to plain Glass, where this shows the bottom rounding of the floating column. Its content scrolls inside it. */
 html.glas #bib > aside{margin-bottom:calc(var(--fuss-h,140px) + var(--unter-h,0px) + 24px);padding-bottom:16px}
-/* Farbstil mit Glas: der Grund trägt links die Farbe der Filterspalte über die ganze Fensterhöhe, so steht der Kopf oben
-   und der Player unten auf derselben Farbe wie die Spalte (vorher heller Streifen über, Textreste unter der Spalte) */
+/* Color style with glass: on the left the background carries the filter column's color over the full window height, so
+   the header at the top and the player at the bottom sit on the same color as the column (before: light strip above, text remnants below the column) */
 @media (min-width:861px){
   html.glas:not(.glas-pur):has(#bib:not([hidden])) body{
     background:linear-gradient(90deg,var(--leiste) 0,var(--leiste) calc(var(--seite-breit) - 1px),
       var(--spalte-rand,var(--leiste-linie)) calc(var(--seite-breit) - 1px),var(--spalte-rand,var(--leiste-linie)) var(--seite-breit),
       var(--grund) var(--seite-breit))}
-  /* die Spalte läuft unten weich aus, statt den letzten Filter hart abzuschneiden (der Grund dahinter hat ihre Farbe) */
+  /* the column fades out softly at the bottom instead of cutting off the last filter hard (the background behind it has its color) */
   html.glas:not(.glas-pur) #bib > aside{-webkit-mask-image:linear-gradient(#000 calc(100% - 22px),transparent);
     mask-image:linear-gradient(#000 calc(100% - 22px),transparent)}
 }
-/* Scroll Edge Effect: der Inhalt verschwimmt sanft, bevor er unter den Fuß läuft (statt hart anzustoßen) */
+/* Scroll edge effect: the content blurs softly before it runs under the player bar (instead of hitting it hard) */
 html.glas body::after{content:"";position:fixed;left:0;right:0;z-index:29;pointer-events:none;height:30px;
   bottom:calc(var(--fuss-h,140px) + var(--unter-h,0px) + 10px);
   -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
@@ -56,11 +56,11 @@ html.glas body::after{content:"";position:fixed;left:0;right:0;z-index:29;pointe
 html.glas header,html.glas footer,html.glas .unterlage{position:relative;isolation:isolate;background:var(--glas);
   -webkit-backdrop-filter:var(--glas-filter);backdrop-filter:var(--glas-filter);
   box-shadow:var(--glas-innen),var(--glas-schatten);border:none}
-/* Glanz: oben hell, nach unten auslaufend; liegt unter der Beschriftung */
+/* Sheen: light at the top, fading downward; sits under the label */
 html.glas header::after,html.glas footer::after,html.glas .unterlage::after{content:"";position:absolute;inset:0;z-index:-1;
   border-radius:inherit;pointer-events:none;
   background:linear-gradient(180deg,rgba(255,255,255,var(--glanz)) 0%,rgba(255,255,255,calc(var(--glanz) * .2)) 34%,transparent 62%)}
-/* Lichtkante: 1-px-Verlaufsring, hell oben links, schwach an den Seiten, unten rechts wieder heller */
+/* Light edge: 1 px gradient ring, light at the top left, faint at the sides, lighter again at the bottom right */
 html.glas header::before,html.glas footer::before,html.glas .unterlage::before{content:"";position:absolute;inset:0;z-index:1;
   border-radius:inherit;padding:1px;pointer-events:none;
   background:linear-gradient(135deg,var(--kante1) 0%,var(--kante2) 45%,var(--kante3) 100%);
@@ -70,12 +70,12 @@ html.glas header{margin:10px 12px 8px;border-radius:var(--glas-rund);padding:8px
 html.glas footer{margin:0 12px 12px;border-radius:var(--glas-rund-fuss);padding:12px 18px 12px 14px;gap:6px 18px;min-height:0;
   grid-template-columns:48px minmax(200px,340px) minmax(0,1fr) auto}
 html.glas .unterlage{margin:0 12px 8px;border-radius:999px;padding:5px 18px;color:var(--fuss-leise)}
-/* Schimmer unter dem Player: ein weicher Farbhof aus der Akzentfarbe des Stils, hinter dem Glas. Dunkles Glas auf
-   dunklem Grund (Tracker, Werkstatt) ist sonst kaum als Glas zu lesen. Stile setzen --glas-schimmer, Vorgabe aus. */
+/* Glow under the player: a soft halo in the style's accent color, behind the glass. Dark glass on a dark
+   background (Tracker, Workshop) is hard to read as glass otherwise. Styles set --glas-schimmer, off by default. */
 html.glas body::before{content:"";position:fixed;left:0;right:0;bottom:0;z-index:29;pointer-events:none;
   height:calc(var(--fuss-h,140px) + var(--unter-h,0px) + 40px);background:var(--glas-schimmer,none)}
 
-/* ---------- Kopf: Reiter als Segment, Felder und Knöpfe als Kapseln */
+/* ---------- Header: tabs as a segmented control, fields and buttons as capsules */
 html.glas .reiter{background:var(--segment-spur,var(--kopf-fuellung));border-radius:var(--rund-knopf);padding:2px;gap:0}
 html.glas .reiter button{border:none;border-radius:var(--rund-knopf);padding:4px 13px;color:var(--kopf-text);
   transition:background-color .2s var(--bahn),box-shadow .2s var(--bahn),transform .12s}
@@ -86,11 +86,11 @@ html.glas .reiter button:active{transform:scale(.96)}
 html.glas #suche{border-radius:var(--rund-knopf);padding:6px 14px;font-size:13px}
 html.glas .projektknopf{border:none;border-radius:var(--rund-knopf);padding:5px 12px;background:var(--kopf-fuellung);color:var(--kopf-text)}
 html.glas .projektknopf.an,html.glas .projektknopf:hover{border:none;background:var(--kopf-fuellung2)}
-html.glas .projektknopf.aus{opacity:1}   /* „kein Projekt“ ist am Text erkennbar; Abblenden kostete auf getöntem Glas Kontrast */
+html.glas .projektknopf.aus{opacity:1}   /* "No project" is recognizable by its text; dimming cost contrast on tinted glass */
 html.glas .tastenknopf{border-radius:var(--rund-knopf);width:28px;height:28px;border:none;background:var(--kopf-fuellung);color:var(--kopf-text)}
 html.glas #filterKnopf{border:none;border-radius:var(--rund-knopf);background:var(--kopf-fuellung)}
 
-/* ---------- Player: Kinder der Glasfläche malen keine eigene Fläche, Gruppen nur als leichte gemeinsame Kapsel */
+/* ---------- Player: children of the glass surface paint no surface of their own, groups only as a light shared capsule */
 html.glas #playKnopf{width:44px;height:44px;border:none;box-shadow:var(--play-schatten);transition:transform .12s,box-shadow .2s}
 html.glas #playKnopf:active:not(:disabled){transform:scale(.94)}
 html.glas #playKnopf:disabled{background:var(--fuss-fuellung);color:var(--fuss-leise);box-shadow:none}
@@ -108,21 +108,21 @@ html.glas footer label.schalter:hover,html.glas footer .fusunter:hover:not(:disa
 html.glas footer label.schalter:has(input:checked){background:var(--fuss-fuellung)}
 html.glas footer label.schalter::before{opacity:.75}
 html.glas footer label.schalter:has(input:checked)::before{opacity:1}
-/* „als Unterlage“ ist ein Knopf, kein Text: eigene Kapsel wie die Gruppen rechts */
+/* "as backing track" is a button, not text: its own capsule like the groups on the right */
 html.glas footer .fusunter{padding:2px 11px;background:var(--fuss-fuellung);border:none;border-radius:var(--rund-knopf)}
 html.glas footer .fusunter.gesperrt{opacity:.5}
 html.glas footer select.wechselwahl{border:none;background:var(--fuss-fuellung);padding:2px 10px;color:var(--fuss-text);border-radius:var(--rund-knopf)}
 html.glas footer input[type=range]::-webkit-slider-thumb,html.glas .unterlage input[type=range]::-webkit-slider-thumb{width:16px;height:16px;margin-top:-6px}
 html.glas .unterlage .ukopf{color:var(--fuss-text)}
-/* auf Glas kein zusätzliches Abblenden der Nebentexte: der Grund dahinter wechselt, die Farbe allein trägt die Stufe */
+/* on glass no extra dimming of secondary text: the background behind it changes, the color alone carries the level */
 html.glas #jetzt .quelle,html.glas .pegelzeile .quelle{opacity:1}
 html.glas .korr input,html.glas .korr select,html.glas #jetzt .notizzeile input{border:none;box-shadow:inset 0 0 0 .5px var(--fuss-linie)}
 
-/* ---------- Menüs, Popover, Meldungen: Bedienebene, textlastig, also volle Tönung */
+/* ---------- Menus, popovers, messages: control layer, text-heavy, so full tint */
 html.glas .plmenue,html.glas .projektfeld,html.glas .ladeliste,html.glas .tastenkarte,html.glas #meldung{background:var(--glas-dicht);
   -webkit-backdrop-filter:var(--glas-filter);backdrop-filter:var(--glas-filter);
   border:none;box-shadow:var(--glas-innen),var(--menue-schatten);color:var(--text)}
-/* das Projektfeld liegt im Kopf: kein Glas in Glas, deshalb die dichte Tönung und Text in der Farbe des Inhalts */
+/* the project field sits in the header: no glass on glass, hence the dense tint and text in the content color */
 html.glas .plmenue,html.glas .projektfeld{border-radius:14px;padding:8px}
 html.glas .pleintrag{border-radius:8px}
 html.glas .pleintrag i{border-radius:4px}
@@ -131,11 +131,11 @@ html.glas .tastenkarte{margin:0 12px;border-radius:var(--glas-rund);left:0;right
 html.glas #meldung{border-radius:999px;padding:7px 16px;bottom:calc(var(--fuss-h,140px) + var(--unter-h,0px) + 26px)}
 
 /* ---------- Fallbacks */
-/* ohne backdrop-filter: deckende Ersatzfarbe */
+/* without backdrop-filter: opaque fallback color */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   html.glas header,html.glas footer,html.glas .unterlage{background:var(--glas-deckend)}
 }
-/* Transparenz reduzieren: macOS-Einstellung oder eigener Schalter (WebKit wertet die Abfrage nicht überall aus) */
+/* Reduce transparency: macOS setting or our own switch (WebKit does not evaluate the media query everywhere) */
 @media (prefers-reduced-transparency:reduce){
   html.glas header,html.glas footer,html.glas .unterlage{background:var(--glas-deckend);-webkit-backdrop-filter:none;backdrop-filter:none}
   html.glas .plmenue,html.glas .projektfeld,html.glas .ladeliste,html.glas .tastenkarte,html.glas #meldung{background:var(--glas-dicht);
@@ -147,18 +147,18 @@ html.glas.wenig-glas header,html.glas.wenig-glas footer,html.glas.wenig-glas .un
 html.glas.wenig-glas .plmenue,html.glas.wenig-glas .projektfeld,html.glas.wenig-glas .ladeliste,html.glas.wenig-glas .tastenkarte,
 html.glas.wenig-glas #meldung{background:var(--glas-dicht);-webkit-backdrop-filter:none;backdrop-filter:none}
 html.glas.wenig-glas header::after,html.glas.wenig-glas footer::after,html.glas.wenig-glas .unterlage::after,html.glas.wenig-glas body::after{display:none}
-/* Bewegung reduzieren: keine Übergänge, kein Drücken, kein Drehen */
+/* Reduce motion: no transitions, no press effect, no rotation */
 @media (prefers-reduced-motion:reduce){
   html.glas *,html.glas *::before,html.glas *::after{transition-duration:0s!important;animation-duration:0s!important}
   html.glas .fgruppe button:active,html.glas .fusschalter > *:active,html.glas .fassungwahl button:active,html.glas .reiter button:active,
   html.glas .chip:active,html.glas #playKnopf:active{transform:none!important}
 }
-/* Kontrast erhöhen: Kopf und Player deckend mit sichtbarer Kante */
+/* Increase contrast: header and player opaque with a visible edge */
 @media (prefers-contrast:more){
   html.glas header,html.glas footer,html.glas .unterlage{background:var(--glas-deckend);box-shadow:inset 0 0 0 1px var(--fuss-linie),var(--glas-schatten)}
 }
 
-/* ---------- schmal */
+/* ---------- narrow */
 @media (max-width:860px){
   html.glas footer{grid-template-columns:44px minmax(0,1fr)}
 }

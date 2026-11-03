@@ -1,17 +1,17 @@
-"""Leichte Messung (Nutzertest 2, 03.11.2026): Tempo und Grundton ohne gehoer, mit app/leichtmessen (Swift, nur
-Apple-Bibliotheken, einrichten.sh baut es mit). Auf Rechnern ohne gehoer kamen Tempo und Tonart nur aus dem Namen.
+"""Light analysis: tempo and root note without gehoer, with app/leichtmessen (Swift, Apple libraries only, built by
+einrichten.sh). On computers without gehoer, tempo and key used to come only from the file name.
 
-Gemessen am 03.11.2026 an Hersteller-Angaben aus Dateinamen (Bibliothek Jeremias):
-  Tempo, 300 Loops: ab Sicherheit 1,5 liefern 227: 131 genau, 88 halb oder doppelt, 8 falsch.
-  Grundton 808 und Bass, 151 One-Shots: 90 Tonklasse richtig, viele übrige 1 bis 2 Halbtöne daneben.
-  Tonart von Loops: 101 von 297 genau, 119 mit Parallele; zu unsicher, wird nicht genutzt.
-Darum übernimmt der Index nur Tempo (Loops ohne Tempo, Sicherheit ab 1,5) und Grundton (808, Bass und tonale One-Shots
-ohne Ton, als unsicher), beides mit Quelle „leicht“. Name, gehoer und Korrekturen von Hand gehen immer vor.
+Measured on 03.11.2026 against the manufacturers' values in file names (the author's library):
+  Tempo, 300 loops: from confidence 1.5, 227 results: 131 exact, 88 half or double, 8 wrong.
+  Root note of 808 and bass, 151 one-shots: 90 with the right pitch class, many others 1 to 2 semitones off.
+  Key of loops: 101 of 297 exact, 119 counting the relative key; too unreliable, not used.
+So the index takes only tempo (loops without tempo, confidence from 1.5) and root note (808, bass and tonal one-shots
+without a pitch, marked uncertain), both with source “leicht”. Name, gehoer and manual corrections always win.
 
-Dazu ein grober Klang-Fingerabdruck (24 Mel-Bänder, Mittel und Streuung) für „Ähnliche“ auf Rechnern ohne gehoer:
-Nutzertest 2 fand dort zu einem Loop nur 1 bis 2 Ähnliche. Verglichen wird standardisiert per Kosinus (nachbarn).
+Also a rough sound fingerprint (24 mel bands, mean and spread) for “Similar” on computers without gehoer: a user test
+found only 1 or 2 similar sounds for a loop there. The comparison is by cosine on standardized vectors (nachbarn).
 
-Ein Faden misst im Hintergrund: höchstens BATCH Dateien je Aufruf, ein Prozess, nice 15 (rund 10 ms je Datei).
+One thread analyzes in the background: at most BATCH files per call, one process, nice 15 (about 10 ms per file).
 """
 import json
 import math
@@ -31,14 +31,14 @@ TONHALTIG_AB = 0.5
 
 class Leicht:
     def __init__(self, befehl, db, _prio, kandidaten, neu_laden):
-        self.befehl, self.db = list(befehl) if befehl else None, Path(db)     # leichtmessen.py mit Python oder Swift
-        self.kandidaten = kandidaten        # () -> [pfad] ohne gehoer-Messung, bei denen Tempo oder Grundton fehlt
-        self.neu_laden = neu_laden          # () -> Index neu laden (im Hintergrund)
+        self.befehl, self.db = list(befehl) if befehl else None, Path(db)     # leichtmessen.py with Python, or the Swift build
+        self.kandidaten = kandidaten        # () -> [path] without gehoer analysis that lack tempo or root note
+        self.neu_laden = neu_laden          # () -> reload the index (in the background)
         self.lock = threading.Lock()
         self.wecker = threading.Event()
         self.stand = {"laeuft": False, "fertig": 0, "offen": 0, "fehler": ""}
         self._cache = (None, {})
-        self._vek = (None, [], [])          # (Stand, Pfade, standardisierte Einheitsvektoren)
+        self._vek = (None, [], [])          # (state, paths, standardized unit vectors)
 
     def stempel(self):
         try:
@@ -57,8 +57,8 @@ class Leicht:
                     "grundton_cent INTEGER, tonhaltig REAL, dauer REAL, fehler TEXT, am TEXT)")
         spalten = {r[1] for r in con.execute("PRAGMA table_info(werte)")}
         if "klang" not in spalten:
-            con.execute("ALTER TABLE werte ADD COLUMN klang TEXT")      # seit dem Klang-Fingerabdruck (03.11.)
-        if "v" not in spalten:          # Stand der Messung: 2 = mit Klang-Fingerabdruck; ältere Zeilen gelten als offen
+            con.execute("ALTER TABLE werte ADD COLUMN klang TEXT")      # added with the sound fingerprint
+        if "v" not in spalten:          # version of the analysis: 2 = with sound fingerprint; older rows count as pending
             con.execute("ALTER TABLE werte ADD COLUMN v INTEGER")
         return con
 
@@ -80,7 +80,7 @@ class Leicht:
         return st, d
 
     def werte(self):
-        """pfad -> dict, zwischengespeichert bis sich die Datenbank ändert (der Index fragt bei jedem Neuladen)."""
+        """path -> dict, cached until the database changes (the index asks on every reload)."""
         return self._werte_mit_stand()[1]
 
     def starten(self):
@@ -91,21 +91,21 @@ class Leicht:
         self.wecker.set()
 
     def _lauf(self):
-        time.sleep(30)                      # erst nach dem Start, der Index ist dann da
+        time.sleep(30)                      # only after startup, the index is there by then
         while True:
             try:
                 self._durchgang()
             except Exception as e:
                 with self.lock:
                     self.stand["fehler"] = f"{type(e).__name__}: {e}"[:200]
-            self.wecker.wait(600)           # neue Dateien kommen über wecken(), sonst alle 10 min nachsehen
+            self.wecker.wait(600)           # new files arrive via wecken(), otherwise check every 10 min
             self.wecker.clear()
 
     def _durchgang(self):
         con = self._verbinden()
         try:
-            # Zeilen vor dem Klang-Fingerabdruck (v leer) gelten als offen; jede andere ist bekannt, auch ohne Klang (zu
-            # kurz) oder mit Fehler (Prüfung 03.11.: 2.127 Dateien unter 0,1 s wurden sonst alle 10 min neu gemessen)
+            # Rows from before the sound fingerprint (v empty) count as pending; every other row is known, even without a
+            # fingerprint (too short) or with an error (otherwise 2,127 files under 0.1 s were analyzed again every 10 min)
             bekannt = {r[0]: (r[1], r[2]) for r in con.execute(
                 "SELECT pfad, groesse, mtime FROM werte WHERE v >= 2 OR fehler IS NOT NULL")}
         finally:
@@ -116,7 +116,7 @@ class Leicht:
                 st = os.stat(p)
             except OSError:
                 continue
-            if plattform.nur_in_cloud(st):          # nicht durchs Messen die halbe Cloud herunterladen
+            if plattform.nur_in_cloud(st):          # do not download half the cloud just to analyze it
                 continue
             if bekannt.get(p) != (st.st_size, st.st_mtime):
                 offen.append(p)
@@ -130,24 +130,24 @@ class Leicht:
                 neu += self._messen(offen[i:i + BATCH])
                 with self.lock:
                     self.stand["fertig"] = min(len(offen), i + BATCH)
-                if time.time() - letztes_laden > 120:    # zwischendurch höchstens alle 2 min neu laden
+                if time.time() - letztes_laden > 120:    # reload at most every 2 min in between
                     self.neu_laden()
                     letztes_laden = time.time()
                 time.sleep(0.5)
         finally:
             with self.lock:
                 self.stand["laeuft"] = False
-            if neu:                  # nur neu laden, wenn Werte kamen (sonst leerte jeder Durchgang die Zwischenspeicher)
+            if neu:                  # reload only when values arrived (otherwise every pass emptied the caches)
                 self.neu_laden()
 
     def _messen(self, pfade):
-        """-> Zahl der geschriebenen Zeilen. Hängt oder stürzt leichtmessen an einer Datei, bekommt genau diese einen
-        Fehlervermerk und der Rest läuft weiter (Prüfung 03.11.: sonst blockierte eine Datei alle folgenden)."""
+        """-> number of rows written. If leichtmessen hangs or crashes on a file, exactly that file gets an error note
+        and the rest goes on (otherwise one file blocked all the following ones)."""
         jetzt = time.strftime("%Y-%m-%d %H:%M")
         geschrieben = 0
         while pfade:
             try:
-                befehl, zusatz = plattform.niedrig(self.befehl)     # nice bzw. niedrige Prioritätsklasse
+                befehl, zusatz = plattform.niedrig(self.befehl)     # nice, or a low priority class
                 zusatz["env"] = dict(os.environ, PYTHONIOENCODING="utf-8")
                 r = subprocess.run(befehl, input="\n".join(pfade) + "\n", capture_output=True, text=True,
                                    encoding="utf-8", timeout=30 + 3 * len(pfade), **zusatz)
@@ -161,12 +161,12 @@ class Leicht:
                 try:
                     st = os.stat(fehlt[0])
                     zeilen.append((fehlt[0], st.st_size, st.st_mtime) + (None,) * 9 +
-                                  ("leichtmessen hängt oder stürzt an dieser Datei", jetzt, None, 2))
+                                  ("leichtmessen hangs or crashes on this file", jetzt, None, 2))
                 except OSError:
                     pass
                 fehlt = fehlt[1:]
             elif fehlt:
-                fehlt = []           # sauber beendet, aber ohne Zeile: nicht endlos neu versuchen
+                fehlt = []           # finished cleanly but without a row: do not retry forever
             self._schreiben(zeilen)
             geschrieben += len(zeilen)
             pfade = fehlt
@@ -199,8 +199,8 @@ class Leicht:
                 con.close()
 
     def _vektoren(self):
-        """Standardisierte Einheitsvektoren aller Dateien mit Klang-Fingerabdruck, neu bei jeder Änderung."""
-        stand, werte = self._werte_mit_stand()    # Stand und Werte aus einem Griff (Prüfung 03.11.: Race)
+        """Standardized unit vectors of all files with a sound fingerprint, rebuilt on every change."""
+        stand, werte = self._werte_mit_stand()    # state and values in one read (otherwise a race)
         if self._vek[0] == stand:
             return self._vek[1], self._vek[2]
         pfade, roh = [], []
@@ -228,7 +228,7 @@ class Leicht:
         return pfade, vek
 
     def nachbarn(self, pfad, k=3000):
-        """{pfad: kosinus} der k ähnlichsten nach dem groben Klang-Fingerabdruck, oder None ohne Fingerabdruck."""
+        """{path: cosine} of the k most similar by the rough sound fingerprint, or None without a fingerprint."""
         pfade, vek = self._vektoren()
         try:
             i = pfade.index(pfad)

@@ -1,13 +1,13 @@
-# Prüfen auf echten Rechnern: Windows, Ubuntu, Mac mit Apple-Chip und Intel.
-# Läuft nur auf Knopfdruck (Actions, „Prüfen“, Run workflow) und bei Versions-Tags, damit ein privates Repo nicht
-# sein Freikontingent verbraucht (macOS-Minuten zählen zehnfach). „pakete“ baut und startet zusätzlich die fertigen Apps.
-name: Prüfen
+# Check on real machines: Windows, Ubuntu, Mac with Apple silicon and Intel.
+# Runs only on demand (Actions, "Check", Run workflow) and on version tags, so a private repo does not use up
+# its free quota (macOS minutes count tenfold). "pakete" also builds and starts the packaged apps.
+name: Check
 
 on:
   workflow_dispatch:
     inputs:
       pakete:
-        description: "Auch die fertigen Apps bauen und starten (dauert länger)"
+        description: "Also build and start the packaged apps (takes longer)"
         type: boolean
         default: false
   push:
@@ -22,7 +22,7 @@ env:
 
 jobs:
   quelltext:
-    name: Quelltext auf ${{ matrix.os }}
+    name: Source on ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -35,10 +35,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install "numpy==${{ env.NUMPY }}" "soundfile==${{ env.SOUNDFILE }}"
+      - run: python tests/check_translations.py
       - run: python tests/rauchtest.py
 
   fenster-pakete:
-    name: Windows- und Linux-App bauen, Linux-App starten
+    name: Build the Windows and Linux apps, start the Linux app
     if: inputs.pakete || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -59,7 +60,7 @@ jobs:
           bash app/fenster_paket.sh windows "$RUNNER_TEMP/paket"
           bash app/fenster_paket.sh linux "$RUNNER_TEMP/paket"
           ls -la "$RUNNER_TEMP/paket"
-      - name: Linux-App installieren (.deb) und prüfen
+      - name: Install the Linux app (.deb) and check it
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q xvfb
           sudo apt-get install -y -q "$RUNNER_TEMP"/paket/*Linux.deb
@@ -67,7 +68,7 @@ jobs:
           "$PY" tests/rauchtest.py --python "$PY" --code "/opt/Open Libary/resources/openlibary"
           xvfb-run -a open-libary > "$RUNNER_TEMP/app.log" 2>&1 &
           for i in $(seq 1 90); do
-            curl -sf http://127.0.0.1:8765/api/stand | grep -q '"paket": true' && { echo "App startet ihren Server"; ok=1; break; }
+            curl -sf http://127.0.0.1:8765/api/stand | grep -q '"paket": true' && { echo "The app started its server"; ok=1; break; }
             sleep 1
           done
           pkill -f "/opt/Open Libary" || true
@@ -79,7 +80,7 @@ jobs:
           retention-days: 1
 
   windows-app:
-    name: Windows-App starten
+    name: Start the Windows app
     needs: fenster-pakete
     runs-on: windows-latest
     timeout-minutes: 15
@@ -89,7 +90,7 @@ jobs:
         with:
           name: windows-app
           path: ${{ runner.temp }}/paket
-      - name: Paket-Python und App prüfen
+      - name: Check the package Python and the app
         shell: pwsh
         run: |
           $ziel = "$env:RUNNER_TEMP\app"
@@ -106,13 +107,13 @@ jobs:
             } catch {}
             Start-Sleep 1
           }
-          Write-Host "App startet ihren Server: $ok"
+          Write-Host "The app started its server: $ok"
           Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
           Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force
           if (-not $ok) { Get-Content "$env:APPDATA\Open Libary\openlibary.log" -Tail 50 -ErrorAction SilentlyContinue; exit 1 }
 
   mac-paket:
-    name: Mac-App bauen und starten (Apple-Chip)
+    name: Build and start the Mac app (Apple silicon)
     if: inputs.pakete || startsWith(github.ref, 'refs/tags/')
     runs-on: macos-latest
     timeout-minutes: 30
@@ -125,7 +126,7 @@ jobs:
       - run: echo "OPENLIBARY_BAU=$RUNNER_TEMP/bau" >> "$GITHUB_ENV"
       - run: bash app/pythons_holen.sh mac
       - run: bash app/app_paket.sh "$RUNNER_TEMP/paket"
-      - name: Paket-Python und App prüfen
+      - name: Check the package Python and the app
         run: bash tests/mac_app_pruefen.sh "$RUNNER_TEMP"/paket/*Mac.zip arm64
       - uses: actions/upload-artifact@v4
         with:
@@ -134,7 +135,7 @@ jobs:
           retention-days: 1
 
   mac-intel:
-    name: Mac-App starten (Intel)
+    name: Start the Mac app (Intel)
     needs: mac-paket
     runs-on: macos-15-intel
     timeout-minutes: 15

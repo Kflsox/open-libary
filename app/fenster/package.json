@@ -1,8 +1,8 @@
 {
   "name": "open-libary",
   "productName": "Open Libary",
-  "version": "1.1.0",
-  "description": "Sample-Bibliothek: eigene Ordner, freie Sounds aus dem Netz, Ziehen in die DAW",
+  "version": "1.2.0",
+  "description": "Sample library: your own folders, free sounds from the web, drag into the DAW",
   "homepage": "http://127.0.0.1:8765/",
   "main": "main.js",
   "private": true,
@@ -50,7 +50,7 @@
       ],
       "category": "Audio",
       "maintainer": "Open Libary",
-      "synopsis": "Sample-Bibliothek mit Ziehen in die DAW"
+      "synopsis": "Sample library with drag into the DAW"
     },
     "extraResources": [
       {

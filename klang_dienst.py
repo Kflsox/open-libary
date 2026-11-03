@@ -1,13 +1,13 @@
-"""Nachbarn nach Klang (Musiker-Test 03.11.2026). Läuft als eigener Prozess in der gehoer-Umgebung (numpy), weil der
-Server nur die Standardbibliothek hat: 63.000 Vektoren mal 1.024 Werte in reinem Python wären Sekunden je Anfrage.
+"""Neighbors by sound. Runs as its own process in the gehoer environment (numpy), because the server has only the
+standard library: 63,000 vectors times 1,024 values in pure Python would take seconds per request.
 
-Liest alle Vektoren aus der Klang-Datenbank (klang_vektoren.py), zieht den Mittelwert der Bibliothek ab und normiert
-neu: gemittelte Einbettungen liegen sonst alle eng beieinander (Prüfung 03.11.), zentriert streuen die Abstände.
-Protokoll über stdin/stdout, eine JSON-Zeile je Anfrage:
-  {"nah": "<schluessel>", "k": 3000}  ->  {"ok": true, "nah": [[schluessel, kosinus], ...]}  (ohne den Bezug selbst;
-                                           "nah": null, wenn der Bezug keinen Fingerabdruck hat; Fehler: "ok": false)
+Reads all vectors from the sound database (klang_vektoren.py), subtracts the library mean and normalizes again:
+averaged embeddings otherwise all lie close together; centered, the distances spread out.
+Protocol over stdin/stdout, one JSON line per request:
+  {"nah": "<schluessel>", "k": 3000}  ->  {"ok": true, "nah": [[schluessel, cosine], ...]}  (without the reference itself;
+                                           "nah": null when the reference has no fingerprint; error: "ok": false)
   {"stand": 1}                         ->  {"ok": true, "zahl": 12345}
-Ändert sich die Datenbank, lädt der Dienst vor der nächsten Antwort neu.
+When the database changes, the service reloads before the next answer.
 """
 import json
 import os
@@ -75,10 +75,10 @@ def main():
             v.aktuell()
             if "nah" in a:
                 r = v.nah(str(a["nah"]), int(a.get("k", 3000)))
-                aus = {"ok": True, "nah": r}      # None: für diesen Schlüssel gibt es keinen Fingerabdruck
+                aus = {"ok": True, "nah": r}      # None: there is no fingerprint for this key
             else:
                 aus = {"ok": True, "zahl": len(v.schluessel)}
-        except Exception as e:      # eine kaputte Anfrage beendet den Dienst nicht
+        except Exception as e:      # a broken request does not end the service
             aus = {"ok": False, "fehler": f"{type(e).__name__}: {e}"}
         sys.stdout.write(json.dumps(aus) + "\n")
         sys.stdout.flush()

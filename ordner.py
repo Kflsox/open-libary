@@ -1,14 +1,14 @@
-"""Eigene Ordner (Musiker-Test 03.11.2026): Sample-Ordner in der App hinzufügen, im Hintergrund einlesen.
+"""Your folders: add sample folders in the app and scan them in the background.
 
-Vorher kam jedes Sample über die Skripte in Werkzeug/bibliothek/ in den Index, mit festen Wurzeln (Splice-Konto,
-FL Studio 2025, eigene Ordner). Wer nicht Jeremias ist, hatte damit eine leere App. Hier steht die Liste der Ordner in
-ordner.json, die eingelesenen Dateien in eigene.csv (Spalten wie bestand.csv, herkunft "ordner", Lizenz "unklar"). Der
-Index liest eigene.csv als dritte Quelle nach bestand.csv und zusaetze.csv; was dort schon steht, wird hier nicht noch
-einmal geführt. Gelesen wird nur, was ohne Rechnen geht: Länge aus dem Dateikopf (WAV, AIFF; sonst ffprobe, wenn da),
-Art, Loop oder One-Shot, Tempo und Tonart aus dem Namen (netz.einordnen), md5. Messen (gehoer) und Klang-Fingerabdruck
-stößt der Server danach an.
+Before, every sample reached the index through the author's scripts in Werkzeug/bibliothek/, with fixed roots (Splice
+account, FL Studio 2025, own folders). Anyone else got an empty app. Here the folder list lives in ordner.json and the
+scanned files in eigene.csv (columns as in bestand.csv, herkunft "ordner", license "unklar"). The index reads
+eigene.csv as a third source after bestand.csv and zusaetze.csv; what is already listed there is not listed again
+here. Only what needs no computing is read: length from the file header (WAV, AIFF; otherwise ffprobe, if present),
+type, loop or one-shot, tempo and key from the name (netz.einordnen), md5. The server starts the analysis (gehoer) and
+the sound fingerprint afterwards.
 
-Testläufe: OPENLIBARY_ORDNER und OPENLIBARY_EIGENE lenken beide Dateien woanders hin.
+Test runs: OPENLIBARY_ORDNER and OPENLIBARY_EIGENE point both files elsewhere.
 """
 import csv
 import hashlib
@@ -25,15 +25,16 @@ from pathlib import Path
 import audioform
 import netz
 import plattform
+from i18n import current, tx
 
 AUDIO = (".wav", ".aif", ".aiff", ".flac", ".mp3", ".ogg")
 SPALTEN = ["datei", "pfad", "pack", "art", "tempo", "tonart", "dauer", "samplerate", "md5", "lizenz_gefunden", "groesse",
            "geaendert", "kanaele", "bits", "format", "loop_oneshot", "art_quelle", "tempo_quelle", "tonart_quelle",
            "herkunft", "wurzel"]
-MAX_DATEIEN = 200_000        # je Ordner; ein versehentlich gewählter Systemordner soll nicht stundenlang laufen
-MD5_BIS = 100 << 20          # größere Dateien ohne md5 (Doppelte erkennt dann nur der Pfad)
+MAX_DATEIEN = 200_000        # per folder; a system folder chosen by mistake should not run for hours
+MD5_BIS = 100 << 20          # larger files get no md5 (duplicates are then found by path only)
 OHNE_ORDNER = {"__MACOSX", ".Trash", ".Trashes", ".Spotlight-V100", ".fseventsd", "node_modules"}
-# Ordnernamen, die eine Kategorie und kein Pack sind: dann heißt das Pack wie der hinzugefügte Ordner
+# Folder names that are a category, not a pack: then the pack is named after the added folder
 KATEGORIE = re.compile(r"(?i)^(drums?|kicks?|snares?|hats?|hi[\s_-]?hats?|claps?|percs?|percussion|808s?|bass|"
                        r"cymbals?|toms?|rims?|fx|sfx|loops?|one[\s_-]?shots?|samples?|melod(y|ies|ic)|vocals?|vox|"
                        r"chords?|keys|synths?|textures?|foley|atmos?|breaks?|fills?|tops?|midi|stems?|construction kits?)$")
@@ -44,7 +45,7 @@ def nfc(s):
 
 
 def _riff_kopf(pfad):
-    """WAV: (Dauer, Abtastrate, Kanäle, Bit) aus fmt und data, auch Float und Extensible; sonst None."""
+    """WAV: (duration, sample rate, channels, bits) from fmt and data, also float and extensible; otherwise None."""
     try:
         with open(pfad, "rb") as f:
             kopf = f.read(12)
@@ -61,7 +62,7 @@ def _riff_kopf(pfad):
                     if len(roh) < 16:
                         return None
                     art, kanaele, rate, _, _, bits = struct.unpack("<HHIIHH", roh[:16])
-                    if art in audioform._OGG_IN_WAV:       # FL-Werkssample: Ogg Vorbis im WAV, Länge aus dem Ogg-Strom
+                    if art in audioform._OGG_IN_WAV:       # FL factory sample: Ogg Vorbis inside WAV, length from the Ogg stream
                         f.close()
                         dauer = audioform.ogg_in_wav_dauer(pfad, rate)
                         return (dauer, rate, kanaele, 16) if dauer else None
@@ -72,7 +73,7 @@ def _riff_kopf(pfad):
                     if not fmt or not all(fmt):
                         return None
                     kanaele, rate, bits = fmt
-                    if groesse == 0xFFFFFFFF:       # RF64 oder Streaming: Rest der Datei
+                    if groesse == 0xFFFFFFFF:       # RF64 or streaming: rest of the file
                         groesse = os.path.getsize(pfad) - f.tell()
                     return round(groesse / (kanaele * bits / 8 * rate), 3), rate, kanaele, bits
                 else:
@@ -82,11 +83,11 @@ def _riff_kopf(pfad):
 
 
 def _aiff_kopf(pfad):
-    return audioform.aiff_kopf(pfad)      # eigener Leser statt aifc (fehlt ab Python 3.13)
+    return audioform.aiff_kopf(pfad)      # own reader instead of aifc (gone since Python 3.13)
 
 
 def _flac_kopf(pfad):
-    """FLAC: Länge aus STREAMINFO (ohne ffprobe; sonst blieben ganze Songs ohne Länge und zählten als Loops)."""
+    """FLAC: length from STREAMINFO (without ffprobe; otherwise whole songs had no length and counted as loops)."""
     try:
         with open(pfad, "rb") as f:
             if f.read(4) != b"fLaC":
@@ -107,8 +108,8 @@ _MP3_KBPS_2 = (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160)
 
 
 def _mp3_kopf(pfad):
-    """MP3: Länge grob aus Dateigröße und Bitrate des ersten Frames (ohne ffprobe; bei VBR ungefähr, reicht für Song
-    oder Loop)."""
+    """MP3: rough length from file size and the bitrate of the first frame (without ffprobe; approximate for VBR, enough
+    to tell song from loop)."""
     try:
         groesse = os.path.getsize(pfad)
         with open(pfad, "rb") as f:
@@ -128,7 +129,7 @@ def _mp3_kopf(pfad):
             kbps = (_MP3_KBPS_1 if version == 3 else _MP3_KBPS_2)[bi]
             rate = _MP3_RATE[version][ri]
             kanaele = 1 if (daten[i + 3] >> 6) == 3 else 2
-            # VBR: der Xing-/Info-Kopf im ersten Frame nennt die Zahl der Frames (sonst lag die Schätzung bis 50 % daneben)
+            # VBR: the Xing/Info header in the first frame gives the number of frames (otherwise the estimate was up to 50 % off)
             seite = (32 if kanaele == 2 else 17) if version == 3 else (17 if kanaele == 2 else 9)
             x = i + 4 + seite
             if daten[x:x + 4] in (b"Xing", b"Info") and int.from_bytes(daten[x + 4:x + 8], "big") & 1:
@@ -152,7 +153,7 @@ def _md5(pfad):
 
 
 def pack_name(wurzel, pfad):
-    """Erster Ordner unter der Wurzel, außer er ist eine Kategorie („Drums“, „Loops“): dann der Name der Wurzel."""
+    """First folder below the root, unless it is a category (“Drums”, “Loops”): then the name of the root."""
     rel = Path(pfad).relative_to(wurzel).parts
     if len(rel) >= 2 and not KATEGORIE.match(rel[0].strip()):
         return rel[0]
@@ -160,36 +161,36 @@ def pack_name(wurzel, pfad):
 
 
 def pfad_pruefen(pfad):
-    """-> (echter Pfad, None) oder (None, Grund). Kein Wurzelordner, kein ganzer Benutzerordner, nichts aus System."""
+    """-> (real path, None) or (None, reason). No root folder, no whole user folder, nothing from the system."""
     if not isinstance(pfad, str) or not pfad.strip():
-        return None, "Kein Ordner angegeben"
+        return None, tx("No folder given")
     p = os.path.realpath(os.path.expanduser(pfad.strip()))
     if not os.path.isdir(p):
-        return None, "Den Ordner gibt es nicht (oder er ist eine Datei)"
-    grund = plattform.gesperrter_ordner(p)      # je System: Wurzel, Benutzerordner, Systemordner
+        return None, tx("This folder does not exist (or it is a file)")
+    grund = plattform.gesperrter_ordner(p)      # per system: root, user folder, system folders
     if grund:
         return None, grund
     if not os.access(p, os.R_OK | os.X_OK):
-        return None, "Keine Leserechte für diesen Ordner"
+        return None, tx("No permission to read this folder")
     return nfc(p), None
 
 
 class Ordner:
-    """Liste der eigenen Ordner und das Einlesen im Hintergrund (ein Lauf zugleich)."""
+    """List of your folders and the background scan (one run at a time)."""
 
     def __init__(self, liste_datei, csv_datei, bekannt, nach_einlesen, ffprobe=None, ohne=()):
         self.liste_datei, self.csv_datei = Path(liste_datei), Path(csv_datei)
-        self.bekannt = bekannt                 # () -> Menge der Pfade aus bestand.csv und zusaetze.csv
-        self.nach_einlesen = nach_einlesen     # (neue Pfade) -> Index neu laden, messen lassen
+        self.bekannt = bekannt                 # () -> set of paths from bestand.csv and zusaetze.csv
+        self.nach_einlesen = nach_einlesen     # (new paths) -> reload the index, queue analysis
         self.ffprobe = ffprobe
-        self.ohne = tuple(nfc(str(x)).rstrip(os.sep) + os.sep for x in ohne)   # Ordner, die nie Samples sind (Renders)
-        self.lock = threading.Lock()           # Stand, Liste und die Lauf-Schalter
+        self.ohne = tuple(nfc(str(x)).rstrip(os.sep) + os.sep for x in ohne)   # folders that never hold samples (renders)
+        self.lock = threading.Lock()           # state, list and the run switches
         self.laeuft = False
         self.nochmal = False
         self._stand = {"laeuft": False, "aktuell": "", "gesehen": 0, "neu": 0, "fertig_um": 0.0, "fehler": "",
                        "zuletzt_neu": 0, "zuletzt_weg": 0}
 
-    # ---------------------------------------------------------- Liste
+    # ---------------------------------------------------------- List
     def liste(self):
         try:
             with open(self.liste_datei, encoding="utf-8") as f:
@@ -213,13 +214,13 @@ class Ordner:
             ordner = self.liste()
             for o in ordner:
                 if p == o["pfad"] or p.startswith(o["pfad"] + os.sep):
-                    return False, f"Liegt schon in „{Path(o['pfad']).name}“, das schon eingelesen wird"
-            # ein übergeordneter Ordner ersetzt die darin liegenden
+                    return False, tx("Already inside “{name}”, which is already being scanned", name=Path(o['pfad']).name)
+            # a parent folder replaces the folders inside it
             ordner = [o for o in ordner if not o["pfad"].startswith(p + os.sep)]
             ordner.append({"pfad": p, "seit": time.strftime("%Y-%m-%d %H:%M")})
             self._liste_schreiben(ordner)
         self.einlesen()
-        return True, f"„{Path(p).name}“ wird eingelesen"
+        return True, tx("Scanning “{name}”", name=Path(p).name)
 
     def entfernen(self, pfad):
         p = nfc(os.path.realpath(os.path.expanduser(pfad or "")))
@@ -227,12 +228,12 @@ class Ordner:
             ordner = self.liste()
             rest = [o for o in ordner if o["pfad"] != p]
             if len(rest) == len(ordner):
-                return False, "Diesen Ordner gibt es in der Liste nicht"
+                return False, tx("This folder is not in the list")
             self._liste_schreiben(rest)
         self.einlesen()
-        return True, f"„{Path(p).name}“ ist raus; die Dateien selbst bleiben, wo sie sind"
+        return True, tx("“{name}” removed; the files themselves stay where they are", name=Path(p).name)
 
-    # ---------------------------------------------------------- Einlesen
+    # ---------------------------------------------------------- Scan
     def stand(self):
         with self.lock:
             d = dict(self._stand)
@@ -243,21 +244,21 @@ class Ordner:
         return d
 
     def einlesen(self):
-        """Im Hintergrund; läuft schon einer, kommt danach genau ein weiterer Durchgang. Prüfen und Freigeben unter
-        derselben Sperre (Prüfung 03.11.: sonst ging ein Hinzufügen genau am Laufende verloren)."""
+        """In the background; if one is already running, exactly one more pass follows. Check and release under the
+        same lock (otherwise a folder added right at the end of a run got lost)."""
         with self.lock:
             if self.laeuft:
                 self.nochmal = True
                 return
             self.laeuft, self.nochmal = True, False
-            self._stand.update(laeuft=True, zuletzt_neu=0, zuletzt_weg=0)    # Zahlen gelten für den ganzen Lauf
+            self._stand.update(laeuft=True, zuletzt_neu=0, zuletzt_weg=0)    # the numbers cover the whole run
         threading.Thread(target=self._lauf, daemon=True, name="ordner").start()
 
     def _lauf(self):
         while True:
             try:
                 self._durchgang()
-            except Exception as e:      # nie den Server mitreißen; der Fehler steht in den Einstellungen
+            except Exception as e:      # never take the server down; the error shows in Settings
                 with self.lock:
                     self._stand.update(fehler=f"{type(e).__name__}: {e}"[:300])
             with self.lock:
@@ -288,7 +289,7 @@ class Ordner:
     def _kopf(self, pfad, endung):
         k = _riff_kopf(pfad) if endung == ".wav" else _aiff_kopf(pfad) if endung in (".aif", ".aiff") else \
             _flac_kopf(pfad) if endung == ".flac" else None
-        if not k and endung in (".ogg", ".oga", ".opus"):     # ohne ffprobe (Windows), sonst keine Länge
+        if not k and endung in (".ogg", ".oga", ".opus"):     # without ffprobe (Windows), otherwise no length
             o = audioform.ogg_kopf(pfad)
             k = (o[0], o[1], o[2], "") if o else None
         if k:
@@ -326,7 +327,7 @@ class Ordner:
         neu_zeilen, neue_pfade = {}, []
         for o in self.liste():
             wurzel = o["pfad"]
-            if not os.path.isdir(wurzel):        # Platte nicht dran: Zeilen behalten, nicht als gelöscht werten
+            if not os.path.isdir(wurzel):        # drive not connected: keep the rows, do not count them as deleted
                 for p, r in alt.items():
                     if r.get("wurzel") == wurzel:
                         neu_zeilen[p] = r
@@ -358,8 +359,8 @@ class Ordner:
                         st = os.stat(pfad)
                     except OSError:
                         continue
-                    if plattform.nur_in_cloud(st):       # iCloud/OneDrive nur online: Lesen lüde sie erst herunter
-                        if pfad in alt:                  # war schon eingelesen, Datei nur ausgelagert: Zeile bleibt
+                    if plattform.nur_in_cloud(st):       # iCloud/OneDrive online-only: reading would download them first
+                        if pfad in alt:                  # already scanned, file only offloaded: the row stays
                             neu_zeilen[pfad] = alt[pfad]
                         cloud += 1
                         continue
@@ -375,22 +376,23 @@ class Ordner:
                         self._stand["neu"] += 1
                 if gezaehlt > MAX_DATEIEN:
                     with self.lock:
-                        self._stand["fehler"] = f"„{Path(wurzel).name}“: nur die ersten {MAX_DATEIEN:,} Dateien".replace(",", ".")
+                        self._stand["fehler"] = tx("“{name}”: only the first {n} files", name=Path(wurzel).name,
+                                                n=f"{MAX_DATEIEN:,}".replace(",", "." if current() == "de" else ","))
                     break
             if cloud:
                 with self.lock:
                     if not self._stand["fehler"]:
-                        self._stand["fehler"] = (f"„{Path(wurzel).name}“: {cloud:,} Dateien liegen nur in der Cloud und "
-                                                 "fehlen; „Immer auf diesem Gerät behalten“ holt sie her").replace(",", ".")
-            # Wurzel nicht lesbar (macOS fragt nach der App-Neusignatur neu) oder leer, obwohl dort Zeilen standen
-            # (leerer Mountpunkt nach unsauberem Auswerfen): wie „Platte ab“, nichts als gelöscht werten (Prüfung 03.11.)
+                        self._stand["fehler"] = tx("“{name}”: {n} files are only in the cloud and missing; “Always keep on this device” downloads them",
+                                                name=Path(wurzel).name, n=f"{cloud:,}".replace(",", "." if current() == "de" else ","))
+            # Root not readable (macOS asks again after the app is re-signed) or empty although it had rows (empty mount
+            # point after an unclean eject): treat it like a disconnected drive, count nothing as deleted
             hatte = [p for p, r in alt.items() if r.get("wurzel") == wurzel]
             if hatte and (fehler_wurzel or gezaehlt == 0):
                 for p in hatte:
                     neu_zeilen.setdefault(p, alt[p])
                 with self.lock:
-                    self._stand["fehler"] = (f"„{Path(wurzel).name}“ ist gerade nicht lesbar" if fehler_wurzel else
-                                             f"„{Path(wurzel).name}“ ist gerade leer") + "; die bisherigen Einträge bleiben"
+                    self._stand["fehler"] = (tx("“{name}” cannot be read right now", name=Path(wurzel).name) if fehler_wurzel else
+                                             tx("“{name}” is empty right now", name=Path(wurzel).name)) + tx("; the existing entries stay")
                 continue
         weg = len(set(alt) - set(neu_zeilen))
         if neu_zeilen != alt:

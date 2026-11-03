@@ -1,7 +1,7 @@
-"""Was je Betriebssystem anders ist (03.11.2026, „max kompi“: Mac mit Apple-Chip und Intel, Windows 10 und 11, Linux).
+"""What differs per operating system (Mac with Apple silicon and Intel, Windows 10 and 11, Linux).
 
-Alles hier nur Standardbibliothek. Der übrige Code fragt dieses Modul statt selbst `open -R`, `osascript`, `xattr`,
-`nice` oder Homebrew-Pfade zu benutzen.
+Standard library only. The rest of the code asks this module instead of using `open -R`, `osascript`, `xattr`,
+`nice` or Homebrew paths itself.
 """
 import os
 import re
@@ -10,16 +10,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+from i18n import tx
+
 SYSTEM = "mac" if sys.platform == "darwin" else "windows" if os.name == "nt" else "linux"
 WINDOWS = SYSTEM == "windows"
-# kein schwarzes Konsolenfenster bei Hilfsprogrammen auf Windows
+# no black console window for helper programs on Windows
 _OHNE_FENSTER = 0x08000000 if WINDOWS else 0          # CREATE_NO_WINDOW
 _NIEDRIG = 0x00004000 if WINDOWS else 0               # BELOW_NORMAL_PRIORITY_CLASS
 
 
 def lebt(pid):
-    """Läuft der Prozess noch? Auf Windows nie os.kill(pid, 0): 0 ist dort CTRL_C_EVENT, und jedes andere Signal
-    beendet den Prozess per TerminateProcess. Stattdessen OpenProcess und GetExitCodeProcess (259 = STILL_ACTIVE)."""
+    """Is the process still running? On Windows never os.kill(pid, 0): 0 is CTRL_C_EVENT there, and any other signal
+    ends the process via TerminateProcess. Use OpenProcess and GetExitCodeProcess instead (259 = STILL_ACTIVE)."""
     try:
         pid = int(pid)
     except (TypeError, ValueError):
@@ -29,7 +31,7 @@ def lebt(pid):
     if WINDOWS:
         import ctypes
         k = ctypes.windll.kernel32
-        k.OpenProcess.restype = ctypes.c_void_p          # Handle ist 64 Bit, ohne restype abgeschnitten
+        k.OpenProcess.restype = ctypes.c_void_p          # the handle is 64 bit, truncated without restype
         k.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
         k.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
         k.CloseHandle.argtypes = [ctypes.c_void_p]
@@ -45,21 +47,21 @@ def lebt(pid):
         os.kill(pid, 0)
         return True
     except PermissionError:
-        return True                                    # läuft, gehört nur einem anderen Nutzer
+        return True                                    # running, it just belongs to another user
     except OSError:
         return False
 
 
 def nur_in_cloud(st):
-    """Platzhalter einer Cloud-Ablage, dessen Inhalt nicht auf der Platte liegt: Lesen würde ihn erst herunterladen
-    (iCloud: SF_DATALESS; OneDrive und andere Windows-Cloud-Dateien: OFFLINE, RECALL_ON_OPEN, RECALL_ON_DATA_ACCESS)."""
+    """Placeholder of a cloud drive whose content is not on disk: reading would download it first
+    (iCloud: SF_DATALESS; OneDrive and other Windows cloud files: OFFLINE, RECALL_ON_OPEN, RECALL_ON_DATA_ACCESS)."""
     if getattr(st, "st_flags", 0) & 0x40000000:
         return True
     return bool(getattr(st, "st_file_attributes", 0) & (0x1000 | 0x40000 | 0x400000))
 
 
 def datenordner():
-    """Nutzerdaten der fertigen App und die leichte Messung."""
+    """User data of the packaged app and the light analysis."""
     if SYSTEM == "mac":
         return Path.home() / "Library/Application Support/Open Libary"
     if WINDOWS:
@@ -68,7 +70,7 @@ def datenordner():
 
 
 def konfigordner():
-    """Logins und Schlüssel (Freesound, Konten). Mac und Linux wie bisher ~/.config/openlibary."""
+    """Logins and keys (Freesound, accounts). Mac and Linux as before: ~/.config/openlibary."""
     if WINDOWS:
         return datenordner() / "konfig"
     return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "openlibary"
@@ -81,7 +83,7 @@ def protokoll():
 
 
 def werkzeug(name):
-    """ffmpeg, ffprobe, rubberband: im PATH, bei Homebrew oder neben der App (Ordner „werkzeuge“), sonst None."""
+    """ffmpeg, ffprobe, rubberband: in PATH, from Homebrew or next to the app (folder “werkzeuge”), otherwise None."""
     exe = name + (".exe" if WINDOWS else "")
     gefunden = shutil.which(name)
     if gefunden:
@@ -98,12 +100,12 @@ def werkzeug(name):
 
 
 def hilfsprozess_args():
-    """Zusätze für subprocess auf Windows: kein Konsolenfenster."""
+    """Extra subprocess arguments on Windows: no console window."""
     return {"creationflags": _OHNE_FENSTER} if WINDOWS else {}
 
 
 def niedrig(befehl):
-    """-> (Befehl, subprocess-Zusätze) mit niedriger Priorität: nice auf Mac und Linux, Prioritätsklasse auf Windows."""
+    """-> (command, subprocess extras) at low priority: nice on Mac and Linux, priority class on Windows."""
     if WINDOWS:
         return list(befehl), {"creationflags": _NIEDRIG | _OHNE_FENSTER}
     if shutil.which("nice"):
@@ -112,7 +114,7 @@ def niedrig(befehl):
 
 
 def im_ordner_zeigen(pfad):
-    """Datei im Finder, Explorer oder Dateimanager zeigen (Ordner: öffnen)."""
+    """Show a file in Finder, Explorer or the file manager (a folder: open it)."""
     pfad = str(pfad)
     ordner = os.path.isdir(pfad)
     if SYSTEM == "mac":
@@ -124,35 +126,37 @@ def im_ordner_zeigen(pfad):
 
 
 def ordner_waehlen():
-    """Ordnerdialog des Systems für den Browser (die Apps haben einen eigenen). -> Pfad, None (abgebrochen) oder
-    löst OSError aus, wenn es keinen Dialog gibt."""
+    """The system's folder dialog for the browser (the apps have their own). -> path, None (cancelled), or raises
+    OSError when there is no dialog."""
     if SYSTEM == "mac":
-        r = subprocess.run(["osascript", "-e", 'POSIX path of (choose folder with prompt '
-                            '"Sample-Ordner für Open Libary wählen")'], capture_output=True, text=True, timeout=600)
+        # translations go into script strings: escape them (AppleScript "…" here, PowerShell '…' below)
+        frage = tx("Choose a sample folder for Open Libary").replace("\\", "\\\\").replace('"', '\\"')
+        r = subprocess.run(["osascript", "-e", f'POSIX path of (choose folder with prompt "{frage}")'],
+                           capture_output=True, text=True, timeout=600)
     elif WINDOWS:
-        # UTF-8 ohne BOM (Windows PowerShell 5.1 setzt sonst ein \ufeff vor den Pfad); unsichtbares Fenster mit
-        # TopMost als Besitzer, sonst öffnet der Dialog hinter dem Browser und die Seite scheint zu hängen
+        # UTF-8 without BOM (Windows PowerShell 5.1 otherwise puts a \ufeff before the path); an invisible TopMost window
+        # as owner, otherwise the dialog opens behind the browser and the page seems to hang
         skript = ("[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false;"
                   "Add-Type -AssemblyName System.Windows.Forms;"
                   "$f = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false};"
                   "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
-                  "$d.Description = 'Sample-Ordner für Open Libary wählen';"
+                  "$d.Description = '" + tx("Choose a sample folder for Open Libary").replace("'", "''") + "';"
                   "if ($d.ShowDialog($f) -eq 'OK') { $d.SelectedPath }; $f.Dispose()")
         r = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", skript], capture_output=True, text=True,
                            timeout=600, encoding="utf-8", **hilfsprozess_args())
     else:
         if not shutil.which("zenity"):
-            raise OSError("kein Ordnerdialog (zenity fehlt)")
-        r = subprocess.run(["zenity", "--file-selection", "--directory", "--title=Sample-Ordner für Open Libary"],
+            raise OSError("no folder dialog (zenity is missing)")
+        r = subprocess.run(["zenity", "--file-selection", "--directory", f"--title={tx('Sample folder for Open Libary')}"],
                            capture_output=True, text=True, timeout=600)
     pfad = (r.stdout or "").strip().lstrip("\ufeff")
     return pfad if r.returncode == 0 and pfad else None
 
 
 def herkunft(pfad):
-    """Adressen, von denen der Browser die Datei geladen hat (Download- und Seitenadresse), sonst [].
-    Mac: kMDItemWhereFroms (Safari, Chrome, Firefox). Windows: Zone.Identifier (Edge, Chrome, Firefox schreiben
-    HostUrl und ReferrerUrl, „Mark of the Web“). Linux: user.xdg.origin.url und user.xdg.referrer.url (Chrome)."""
+    """Addresses the browser downloaded the file from (download and page address), otherwise [].
+    Mac: kMDItemWhereFroms (Safari, Chrome, Firefox). Windows: Zone.Identifier (Edge, Chrome, Firefox write
+    HostUrl and ReferrerUrl, “Mark of the Web”). Linux: user.xdg.origin.url and user.xdg.referrer.url (Chrome)."""
     try:
         if SYSTEM == "mac":
             r = subprocess.run(["xattr", "-px", "com.apple.metadata:kMDItemWhereFroms", str(pfad)],
@@ -178,32 +182,32 @@ def herkunft(pfad):
 
 
 def gesperrter_ordner(p):
-    """-> Grund oder None: Ordner, die zu groß sind oder dem System gehören (Eigene Ordner)."""
+    """-> reason or None: folders that are too big or belong to the system (Your folders)."""
     heim = os.path.realpath(os.path.expanduser("~"))
     teile = Path(p).parts
     if WINDOWS:
         laufwerk = os.path.splitdrive(p)[0]
         unten = p.lower()
         if len(teile) <= 1 or p.rstrip("\\/") == laufwerk:
-            return "Ein ganzes Laufwerk ist zu groß; einen Sample-Ordner darauf wählen"
+            return tx("A whole drive is too big; choose a sample folder on it")
         if unten.rstrip("\\/") == heim.lower() or os.path.dirname(heim).lower() == unten.rstrip("\\/"):
-            return "Der ganze Benutzerordner ist zu groß; einen Sample-Ordner darunter wählen"
+            return tx("The whole user folder is too big; choose a sample folder inside it")
         for gesperrt in ("windows", "program files", "program files (x86)", "programdata", "$recycle.bin"):
             if unten == (laufwerk + "\\" + gesperrt).lower() or unten.startswith((laufwerk + "\\" + gesperrt + "\\").lower()):
-                return "Dieser Ordner gehört dem System; einen Sample-Ordner wählen"
+                return tx("This folder belongs to the system; choose a sample folder")
         appdata = os.path.join(heim, "AppData").lower()
         if unten == appdata or unten.startswith(appdata + "\\"):
-            return "Dieser Ordner hält Daten von Programmen; einen Sample-Ordner wählen"
+            return tx("This folder holds program data; choose a sample folder")
         return None
     if p in ("/", heim, "/Users", "/home", "/Volumes", "/media", "/mnt", "/System", "/private", "/usr", "/etc") \
             or p.startswith(("/System/", "/private/var/", "/dev", "/proc", "/sys", "/usr/", "/etc/")):
-        return "Dieser Ordner ist zu groß oder gehört dem System; einen Sample-Ordner darunter wählen"
+        return tx("This folder is too big or belongs to the system; choose a sample folder inside it")
     if len(teile) < 3 and not p.startswith(("/Volumes/", "/media/", "/mnt/")):
-        return "Dieser Ordner ist zu weit oben; einen Sample-Ordner darunter wählen"
+        return tx("This folder is too high up; choose a sample folder inside it")
     bib = os.path.join(heim, "Library")
     if SYSTEM == "mac" and (p == bib or any(p == os.path.join(bib, x) or p.startswith(os.path.join(bib, x) + os.sep)
                                             for x in ("Mobile Documents", "Group Containers", "Containers", "Messages",
                                                       "Mail"))):
-        # sonst kämen Sprachnachrichten und Sprachmemos in den Index (und wären abspielbar)
-        return "Dieser Ordner hält Daten von Apps (Nachrichten, Memos, iCloud); einen Sample-Ordner wählen"
+        # otherwise voice messages and voice memos would end up in the index (and be playable)
+        return tx("This folder holds app data (Messages, Voice Memos, iCloud); choose a sample folder")
     return None

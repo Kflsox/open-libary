@@ -1,17 +1,18 @@
-// leichtmessen (Nutzertest 2, 03.11.2026): Tempo, Tonart und Grundton ohne gehoer. Für Rechner ohne Jeremias'
-// Messwerkzeug: dort kamen Tempo und Tonart nur aus dem Dateinamen, 808 fielen im Projektrahmen ganz heraus und
-// „Ähnliche“ fand fast nichts. Nur Apple-Bibliotheken (AVFoundation zum Lesen, Accelerate zum Rechnen), keine
-// Installation; einrichten.sh baut es mit.
+// leichtmessen: tempo, key and root note without gehoer. For computers without the author's analysis tool: there
+// tempo and key came only from the file name, 808s dropped out of the project frame entirely and "Similar" found
+// almost nothing. Only Apple libraries (AVFoundation for reading, Accelerate for the math), nothing to install;
+// einrichten.sh builds it along with the app.
 //
-// Aufruf: Pfade zeilenweise auf stdin, je Datei eine JSON-Zeile auf stdout:
+// Usage: paths line by line on stdin, one JSON line per file on stdout:
 //   {"pfad", "dauer", "bpm", "bpm_sicher", "ton", "moll", "ton_sicher", "grundton_midi", "grundton_cent", "tonhaltig"}
-// oder {"pfad", "fehler"}. Gelesen werden höchstens die ersten 30 s.
+// or {"pfad", "fehler"}. At most the first 30 s are read.
 //
-// Verfahren (bewusst einfach, gehoer misst genauer):
-//   Tempo: Onset-Hüllkurve (spektraler Fluss, 1024/256 bei ~22 kHz), Autokorrelation 60 bis 200 BPM mit einer
-//          Vorliebe um 120 BPM, danach auf die Loop-Länge eingerastet (ein Loop ist eine ganze Zahl Takte lang).
-//   Tonart: Chroma aus 4096er-Spektren (60 bis 2000 Hz), Korrelation mit den Krumhansl-Kessler-Profilen.
-//   Grundton: YIN auf 200 ms ab 50 ms nach dem Anschlag (808 gleiten am Anfang), 25 bis 1000 Hz.
+// Method (deliberately simple, gehoer measures more precisely):
+//   Tempo: onset envelope (spectral flux, 1024/256 at ~22 kHz), autocorrelation 60 to 200 BPM with a
+//          preference around 120 BPM, then snapped to the loop length (a loop is a whole number of bars long).
+//   Key: chroma from 8192-point spectra (pitches C2 to C7, each the sum of its first four harmonics),
+//        correlation with the Krumhansl-Kessler profiles.
+//   Root note: YIN on 200 ms from 50 ms after the attack (808s glide at the start), 25 to 1000 Hz.
 import Foundation
 import AVFoundation
 import Accelerate
@@ -27,7 +28,7 @@ struct Ergebnis: Encodable {
     var grundton_midi: Int? = nil
     var grundton_cent: Int? = nil
     var tonhaltig: Double? = nil
-    var klang: [Double]? = nil          // 24 Mel-Bänder: Mittel und Streuung des Pegels (dB), erste 10 s
+    var klang: [Double]? = nil          // 24 mel bands: mean and spread of the level (dB), first 10 s
     var fehler: String? = nil
 }
 
@@ -39,15 +40,15 @@ func laden(_ url: URL, maxSek: Double = 30) throws -> ([Float], Double, Double) 
     let sr = fmt.sampleRate
     let dauer = Double(f.length) / sr
     let n = AVAudioFrameCount(min(Double(f.length), maxSek * sr))
-    guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n) else { throw Fehler.lesen("leer") }
+    guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n) else { throw Fehler.lesen("empty") }
     try f.read(into: buf, frameCount: n)
     let len = Int(buf.frameLength), kan = Int(fmt.channelCount)
-    guard let daten = buf.floatChannelData, len > 0 else { throw Fehler.lesen("kein Float-Format") }
+    guard let daten = buf.floatChannelData, len > 0 else { throw Fehler.lesen("not a float format") }
     var mono = [Float](repeating: 0, count: len)
     for c in 0..<kan { vDSP_vadd(mono, 1, daten[c], 1, &mono, 1, vDSP_Length(len)) }
     var k = 1 / Float(kan)
     vDSP_vsmul(mono, 1, &k, &mono, 1, vDSP_Length(len))
-    // auf rund 22 kHz: Mittel über 2 (bzw. 4) Werte als grober Tiefpass
+    // down to about 22 kHz: mean over 2 (or 4) values as a rough low-pass
     let faktor = sr >= 88_000 ? 4 : sr >= 44_000 ? 2 : 1
     if faktor == 1 { return (mono, sr, dauer) }
     let m = len / faktor
@@ -73,7 +74,7 @@ final class Spektrum {
         re = [Float](repeating: 0, count: n / 2); im = re; w = fenster
     }
     deinit { vDSP_destroy_fftsetup(setup) }
-    /// Beträge der ersten n/2 Bins ab x[start]
+    /// Magnitudes of the first n/2 bins from x[start]
     func betrag(_ x: [Float], _ start: Int) -> [Float] {
         x.withUnsafeBufferPointer { xp in vDSP_vmul(xp.baseAddress! + start, 1, fenster, 1, &w, 1, vDSP_Length(n)) }
         var mag = [Float](repeating: 0, count: n / 2)
@@ -86,7 +87,7 @@ final class Spektrum {
                     }
                 }
                 vDSP_fft_zrip(setup, &z, 1, log2n, FFTDirection(FFT_FORWARD))
-                z.imagp[0] = 0          // im Bin 0 steht sonst Nyquist
+                z.imagp[0] = 0          // bin 0 holds Nyquist otherwise
                 vDSP_zvabs(&z, 1, &mag, 1, vDSP_Length(n / 2))
             }
         }
@@ -113,7 +114,7 @@ func tempo(_ x: [Float], sr: Double, dauer: Double) -> (Double, Double)? {
         huelle[i] = fluss
         vorher = mag
     }
-    // gleitendes Mittel abziehen, nur Anstiege behalten
+    // subtract the moving average, keep only rises
     let breite = 16
     var mittel = [Float](repeating: 0, count: rahmen)
     var summe: Float = 0
@@ -137,15 +138,15 @@ func tempo(_ x: [Float], sr: Double, dauer: Double) -> (Double, Double)? {
     var akSumme: Float = 0
     for lag in minLag...maxLag { akSumme += ak[lag] }
     let akMittel = Double(akSumme) / Double(maxLag - minLag + 1) + 1e-9
-    // Autokorrelation an einem Tempo (gebrochene Verzögerung linear zwischen zwei Rahmen)
+    // Autocorrelation at a tempo (fractional lag interpolated linearly between two frames)
     func akBei(_ bpm: Double) -> Double {
         let l = (60.0 / bpm) / hopS
         let i = Int(l), f = l - Double(i)
         guard i >= 1, i + 1 < ak.count else { return 0 }
         return Double(ak[i]) * (1 - f) + Double(ak[i + 1]) * f
     }
-    // Ein Loop ist eine ganze Zahl Takte (1, 2, 4, 8, 16, 32 Takte 4/4): dann kommen nur diese Tempi in Frage, und die
-    // Autokorrelation wählt zwischen ihnen (Prüfung 03.11.: frei geschätzt lagen 26 von 300 bei 4/3 des richtigen Tempos)
+    // A loop is a whole number of bars (1, 2, 4, 8, 16, 32 bars of 4/4): then only these tempos qualify, and the
+    // autocorrelation chooses between them (check: estimated freely, 26 of 300 landed at 4/3 of the right tempo)
     if dauer >= 1.5 {
         var kand: [Double] = []
         for takte in [1.0, 2, 4, 8, 16, 32] {
@@ -172,12 +173,12 @@ func tempo(_ x: [Float], sr: Double, dauer: Double) -> (Double, Double)? {
         if wert > bester { bester = wert; besterLag = lag }
     }
     guard bester > 0 else { return nil }
-    // Feinlage per Parabel
+    // Fine position by parabola
     let a = Double(ak[besterLag - 1]), b = Double(ak[besterLag]), c = Double(ak[besterLag + 1])
     let versatz = (a - 2 * b + c) != 0 ? 0.5 * (a - c) / (a - 2 * b + c) : 0
     var bpm = 60.0 / ((Double(besterLag) + max(-0.5, min(0.5, versatz))) * hopS)
     let sicher = Double(ak[besterLag]) / akMittel
-    // Loop-Länge: ein Loop ist eine ganze Zahl Takte; dann ist das Tempo genau 240 * Takte / Dauer
+    // Loop length: a loop is a whole number of bars; then the tempo is exactly 240 * bars / duration
     var eingerastet = false
     if dauer >= 1.5 {
         var naechst = Double.infinity, ziel = bpm
@@ -194,7 +195,7 @@ func tempo(_ x: [Float], sr: Double, dauer: Double) -> (Double, Double)? {
     return (bpm, min(9.9, sicher) * (eingerastet ? 1.0 : 0.7))
 }
 
-// ---------------------------------------------------------------- Tonart
+// ---------------------------------------------------------------- Key
 let DUR: [Double] = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
 let MOLL: [Double] = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 
@@ -206,8 +207,8 @@ func korrelation(_ a: [Double], _ b: [Double]) -> Double {
 }
 
 func tonart(_ x: [Float], sr: Double) -> (Int, Bool, Double)? {
-    // 8192 bei ~22 kHz: 2,7 Hz je Bin; unter 100 Hz liegen Halbtöne enger als das, darum erst ab 100 Hz. Nur Bins bis
-    // 25 Cent neben einem Halbton zählen (Prüfung 03.11.: mit 4096 und allen Bins lag jede fünfte Tonart eine Quinte daneben)
+    // 8192 at ~22 kHz: 2.7 Hz per bin; below 100 Hz semitones lie closer than that, so only from 100 Hz on. Only bins
+    // within 25 cents of a semitone count (check: with 4096 and all bins, every fifth key was off by a fifth)
     let n = 8192, hop = 4096
     guard x.count > n else { return nil }
     let fft = Spektrum(n)
@@ -219,8 +220,8 @@ func tonart(_ x: [Float], sr: Double) -> (Int, Bool, Double)? {
         if abs(halbton - halbton.rounded()) > 0.25 { continue }
         klasse[b] = ((Int(halbton.rounded()) + 69) % 12 + 12) % 12
     }
-    // Tonhöhen statt Bins: je Halbton C2 bis C7 die Summe seiner ersten vier Obertöne (0,8 je Stufe leiser). So zählt ein
-    // Grundton mehr als die Quinte, die sein dritter Oberton ist (Prüfung 03.11.: 21 % der Tonarten eine Quinte zu hoch)
+    // Pitches instead of bins: per semitone C2 to C7 the sum of its first four harmonics (each 0.8 quieter). So a
+    // root note counts more than the fifth, which is its third harmonic (check: 21 % of the keys a fifth too high)
     _ = klasse
     var chroma = [Double](repeating: 0, count: 12)
     var bins: [[Int]] = []
@@ -249,16 +250,16 @@ func tonart(_ x: [Float], sr: Double) -> (Int, Bool, Double)? {
         werte.append((korrelation(gedreht, MOLL), t, true))
     }
     werte.sort { $0.0 > $1.0 }
-    // Sicherheit: Abstand zur zweitbesten, die nicht die Parallele ist (C und Am teilen alle Töne)
+    // Confidence: distance to the second best that is not the relative key (C and Am share all notes)
     let erster = werte[0]
     let parallele = erster.2 ? (erster.1 + 3) % 12 : (erster.1 + 9) % 12
     let zweiter = werte.dropFirst().first { !($0.1 == parallele && $0.2 != erster.2) } ?? werte[1]
     return (erster.1, erster.2, max(0, erster.0) * 10 * (erster.0 - zweiter.0))
 }
 
-// ---------------------------------------------------------------- Grundton
+// ---------------------------------------------------------------- Root note
 func grundton(_ x: [Float], sr: Double) -> (Double, Double)? {
-    // Anschlag: lautester 512er-Rahmen in der ersten Sekunde
+    // Attack: loudest 512-sample frame in the first second
     let r = 512
     var spitze = 0, spitzeWert: Float = 0
     var j = 0
@@ -270,8 +271,8 @@ func grundton(_ x: [Float], sr: Double) -> (Double, Double)? {
     }
     let tauMin = Int(sr / 1000), tauMax = Int(sr / 25)
     let breite = Int(0.12 * sr)
-    // mehrere Fenster ab 100 ms nach dem Anschlag, der Median zählt (Prüfung 03.11.: ab 50 ms lag jedes siebte 808 einen
-    // Halbton zu tief, es gleitet noch); kurze Sounds: so viele Fenster, wie passen
+    // several windows from 100 ms after the attack, the median counts (check: from 50 ms every seventh 808 was a
+    // semitone too low, it is still gliding); short sounds: as many windows as fit
     var tonhoehen: [(Double, Double)] = []
     for versatzMs in stride(from: 100, through: 600, by: 100) {
         let start = spitze + Int(Double(versatzMs) / 1000 * sr)
@@ -300,7 +301,7 @@ func yin(_ x: [Float], start: Int, breite: Int, tauMin: Int, tauMax: Int, sr: Do
             d[tau] = s
         }
     }
-    // kumulativ normiert (YIN)
+    // cumulative mean normalized difference (YIN)
     var dn = [Float](repeating: 1, count: tauMax + 1)
     var lauf: Float = 0
     for tau in 1...tauMax {
@@ -319,7 +320,7 @@ func yin(_ x: [Float], start: Int, breite: Int, tauMin: Int, tauMax: Int, sr: Do
     if wahl < 0 {
         var minWert: Float = 9
         for t in tauMin..<tauMax where dn[t] < minWert { minWert = dn[t]; wahl = t }
-        if minWert > 0.4 { return nil }      // kein Ton erkennbar (Snare, Rauschen)
+        if minWert > 0.4 { return nil }      // no pitch detectable (snare, noise)
     }
     let a = Double(dn[wahl - 1]), b = Double(dn[wahl]), c = Double(dn[min(wahl + 1, tauMax)])
     let versatz = (a - 2 * b + c) != 0 ? 0.5 * (a - c) / (a - 2 * b + c) : 0
@@ -327,9 +328,9 @@ func yin(_ x: [Float], start: Int, breite: Int, tauMin: Int, tauMax: Int, sr: Do
     return (69 + 12 * log2(f0 / 440), 1 - Double(dn[wahl]))
 }
 
-// ---------------------------------------------------------------- Klang (für „Ähnliche“ ohne gehoer)
-// Mittel und Streuung des Pegels in 24 Mel-Bändern (60 Hz bis 8 kHz) über die ersten 10 s: grob, aber es trennt Kick
-// von Snare, dunkle von hellen Loops, Vinyl von sauber. Der Server standardisiert und vergleicht per Kosinus.
+// ---------------------------------------------------------------- Timbre (for "Similar" without gehoer)
+// Mean and spread of the level in 24 mel bands (60 Hz to 8 kHz) over the first 10 s: rough, but it separates kick
+// from snare, dark from bright loops, vinyl from clean. The server standardizes and compares by cosine.
 func klangVektor(_ x: [Float], sr: Double) -> [Double]? {
     let n = 1024, hop = 512, baender = 24
     let ende = min(x.count, Int(10 * sr))
@@ -370,7 +371,7 @@ func klangVektor(_ x: [Float], sr: Double) -> [Double]? {
     return v.map { ($0 * 10).rounded() / 10 }
 }
 
-// ---------------------------------------------------------------- Ablauf
+// ---------------------------------------------------------------- Main loop
 let kodierer = JSONEncoder()
 while let zeile = readLine() {
     let pfad = zeile.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -391,14 +392,14 @@ while let zeile = readLine() {
         } catch {
             e.fehler = "\(error)".prefix(200).description
         }
-        // nur endliche Zahlen (eine Float-WAV mit NaN ließ JSONEncoder scheitern, dann fehlte die Zeile ganz)
+        // only finite numbers (a float WAV with NaN made JSONEncoder fail, then the line was missing entirely)
         func endlich(_ x: Double?) -> Double? { x.flatMap { $0.isFinite ? $0 : nil } }
         e.dauer = endlich(e.dauer); e.bpm = endlich(e.bpm); e.bpm_sicher = endlich(e.bpm_sicher)
         e.ton_sicher = endlich(e.ton_sicher); e.tonhaltig = endlich(e.tonhaltig)
         if let k = e.klang, k.contains(where: { !$0.isFinite }) { e.klang = nil }
         if let d = try? kodierer.encode(e), let s = String(data: d, encoding: .utf8) {
             print(s)
-        } else if let d = try? kodierer.encode(Ergebnis(pfad: pfad, fehler: "nicht kodierbar")),
+        } else if let d = try? kodierer.encode(Ergebnis(pfad: pfad, fehler: "not encodable")),
                   let s = String(data: d, encoding: .utf8) {
             print(s)
         }

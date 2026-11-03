@@ -1,62 +1,71 @@
 # Open Libary
 
-Eine Sample-Bibliothek für Producer, die auf dem eigenen Rechner läuft: Sie durchsucht deine Sample-Ordner, spielt
-sofort ab, und du ziehst Sounds direkt in deine DAW. Dazu sucht sie freie Sounds im Netz und legt sie mit Lizenzbeleg
-in deine Bibliothek. Kein Konto, keine Cloud, deine Dateien bleiben, wo sie sind.
+A sample library for producers that runs on your own computer: it searches your sample folders, plays instantly, and
+you drag sounds straight into your DAW. It also finds free sounds on the web and adds them to your library with a
+license record. No account, no cloud, your files stay where they are.
 
-*A local sample library for music producers on macOS, Windows and Linux. The interface is in German.*
+Runs on macOS, Windows and Linux. The interface is in English and German: Settings > Language switches it. English is
+the default; the app menus switch along with it.
 
-Der Name ist mit Absicht „Libary“: „Open Library“ heißt schon der Bücherkatalog des Internet Archive.
+The name is "Libary" on purpose: "Open Library" is already the Internet Archive's book catalog.
 
-## Was sie kann
+## What it does
 
-- **Eigene Ordner** einlesen: WAV, AIFF, FLAC, MP3, OGG, auch die Werkssamples von FL Studio. Nichts wird verschoben.
-- **Finden:** Suche, Filter nach Art (Kick, Snare, 808, Loop, One-Shot …), Tempo, Tonart und Länge, „Ähnliche“ nach
-  Klang, Zufall zum Stöbern, Favoriten, Playlists, Notizen mit anklickbaren Zeitmarken, Verlauf.
-- **Hören:** Wiedergabe mit Wellenform, Ausschnitte, Anpassen an Projekttempo und Tonart (Tempo, Tonhöhe, Varispeed;
-  dafür braucht es ffmpeg und rubberband).
-- **Ziehen in die DAW:** FL Studio, Ableton Live, Logic, Cubase, Studio One, Reaper, Bitwig, Pro Tools. Formate, die
-  eine DAW nicht liest (OGG und FLAC in Logic und Pro Tools, die FL-Werkssamples außerhalb von FL), gibt sie dabei als
-  WAV weiter.
-- **Messen ohne Zusatzprogramme:** Tempo von Loops, Grundton von 808 und Bass, grober Klang-Fingerabdruck. Geschätzte
-  Werte sind in der Liste mit „~“ markiert.
-- **Netz:** freie Sounds von Freesound, ccMixter und dem Internet Archive suchen, vorhören und laden, nur CC0, CC BY
-  und gemeinfrei, jeweils mit Lizenzbeleg. Freesound auf Wunsch mit eigenem Konto (Originaldateien), Looperman über
-  den eigenen Browser.
-- **Lizenzen klären:** Für eigene Ordner hältst du Pack für Pack fest, was gilt.
+- **Your folders:** scans WAV, AIFF, FLAC, MP3, OGG, including FL Studio's factory samples. Nothing is moved.
+- **Find:** search, filters by type (Kick, Snare, 808, Loop, One-Shot …), tempo, key and length, "Similar" by sound,
+  Random for browsing, Favorites, playlists, notes with clickable timestamps, History.
+- **Listen:** playback with waveform, regions, matching to the project tempo and key (tempo, pitch, varispeed; this
+  needs ffmpeg and rubberband).
+- **Drag into the DAW:** FL Studio, Ableton Live, Logic, Cubase, Studio One, Reaper, Bitwig, Pro Tools. Formats a DAW
+  cannot read (OGG and FLAC in Logic and Pro Tools, the FL factory samples outside FL) are handed over as WAV.
+- **Analysis without extra programs:** tempo of loops, root note of 808 and bass, a rough sound fingerprint. Estimated
+  values are marked with "~" in the list.
+- **Web:** search, preview and download free sounds from Freesound, ccMixter and the Internet Archive, only CC0, CC BY
+  and public domain, each with a license record. Freesound optionally with your own account (original files),
+  Looperman through your own browser.
+- **Sort out licenses:** for your own folders you record, pack by pack, what applies.
 
-## Einrichten
+## Setup
 
-Die fertigen Apps (Mac ab macOS 10.15, Apple-Chip und Intel; Windows 10 und 11; Linux als .deb und tar.gz) bringen
-alles mit, es muss nichts installiert werden. Schritt für Schritt, auch was beim ersten Öffnen einer nicht signierten
-App zu tun ist: [ANLEITUNG.md](ANLEITUNG.md).
+The finished apps (Mac from macOS 10.15, Apple chip and Intel; Windows 10 and 11; Linux as .deb and tar.gz) bring
+everything they need, nothing has to be installed. Step by step, including what to do the first time you open an
+unsigned app: [GUIDE.md](GUIDE.md).
 
-Aus dem Quelltext (Python 3.9 oder neuer, für die Messung zusätzlich `numpy` und `soundfile`):
+From source (Python 3.9 or newer; the analysis also needs `numpy` and `soundfile`):
 
 ```
 OPENLIBARY_DATEN=~/.local/share/open-libary python3 openlibary.py
 ```
 
-Dann öffnet sich `http://127.0.0.1:8765/` im Browser. Ziehen in die DAW geht nur in den Apps, nicht im Browser.
+Then `http://127.0.0.1:8765/` opens in the browser. Dragging into the DAW works only in the apps, not in the browser.
 
-## Apps bauen
+## Building the apps
 
 ```
-bash app/pythons_holen.sh                      # eigenständige Pythons mit numpy und soundfile (braucht uv)
-bash app/app_paket.sh <Zielordner>             # Mac, Universal (Objective-C-Hülle, braucht die Command Line Tools)
+bash app/pythons_holen.sh                         # standalone Pythons with numpy and soundfile (needs uv)
+bash app/app_paket.sh <target folder>             # Mac, Universal (Objective-C shell, needs the Command Line Tools)
 cd app/fenster && npm ci && cd ../..
-bash app/fenster_paket.sh windows <Zielordner> # Windows x64 (Electron)
-bash app/fenster_paket.sh linux <Zielordner>   # Linux x64, .deb und tar.gz
+bash app/fenster_paket.sh windows <target folder> # Windows x64 (Electron)
+bash app/fenster_paket.sh linux <target folder>   # Linux x64, .deb and tar.gz
 ```
 
-## Prüfen
+## Testing
 
-`python tests/rauchtest.py` erzeugt eine kleine Test-Bibliothek aus synthetischen Klängen, startet den Server und
-prüft Einlesen, Längen, Wiedergabe jedes Formats, Messung, WAV beim Ziehen und den zweiten Start. Der Workflow
-„Prüfen“ (`.github/workflows/pruefen.yml`) lässt das auf Windows, Ubuntu und Mac (Apple-Chip und Intel) laufen und
-baut und startet auf Wunsch die fertigen Apps.
+`python tests/rauchtest.py` is the smoke test: it builds a small test library from synthetic sounds, starts the server
+and checks scanning, durations, playback of every format, analysis, WAV on drag, the interface language and a
+second start. `python tests/check_translations.py` checks that every text has an entry in each `lang/*.json`. The workflow
+"Check" (`.github/workflows/pruefen.yml`) runs it on Windows, Ubuntu and Mac (Apple chip and Intel) and, on request,
+also builds and starts the finished apps.
 
-## Lizenz
+## Translations
 
-GNU Affero General Public License, Version 3 oder neuer ([LICENSE](LICENSE)). Was die Apps an fremder Software
-mitbringen, steht in [DRITTANBIETER.md](DRITTANBIETER.md).
+The texts live in `lang/<code>.json`: one JSON object that maps each English text to its translation, one entry per
+text. Placeholders such as `{n}` stay as they are. A text without an entry shows in English.
+
+To add a language: copy `lang/de.json` to `lang/<code>.json`, translate the values (not the keys), and add the code
+with the language's own name to `LANGUAGES` in `i18n.py`. `python tests/check_translations.py` lists every text that is still missing.
+
+## License
+
+GNU Affero General Public License, version 3 or later ([LICENSE](LICENSE)). Third-party software that the apps
+include is listed in [THIRD_PARTY.md](THIRD_PARTY.md).

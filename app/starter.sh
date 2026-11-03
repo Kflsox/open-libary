@@ -1,18 +1,18 @@
 #!/bin/bash
-# openlibary: startet die Open Libary (Sample-Bibliothek) im Hintergrund und öffnet sie.
-#   openlibary          starten oder, wenn sie schon läuft, nur öffnen
-#   openlibary stopp    Server beenden
-#   openlibary log      Protokoll zeigen
-#   openlibary --nur-server   nur den Server starten (so ruft ihn die App auf)
-# Vorlage: einrichten.sh schreibt sie nach ~/.local/bin/openlibary und setzt den Code-Ordner ein.
+# openlibary: starts Open Libary (sample library) in the background and opens it.
+#   openlibary          start it, or only open it when it is already running
+#   openlibary stop     stop the server (German alias: stopp)
+#   openlibary log      show the log
+#   openlibary --server-only   start only the server (the app calls it as --nur-server, which keeps working)
+# Template: einrichten.sh writes it to ~/.local/bin/openlibary and fills in the code folder.
 HIER="__HIER__"
 PORT=8765
 URL="http://127.0.0.1:$PORT/"
 LOG="$HOME/Library/Logs/openlibary.log"
 case "${1:-}" in
-  stopp) pkill -f "openlibary.py --port" && echo "Open Libary beendet." || echo "Open Libary lief nicht."; exit 0 ;;
+  stop|stopp) pkill -f "openlibary.py --port" && echo "Open Libary stopped." || echo "Open Libary was not running."; exit 0 ;;
   log) tail -n 40 "$LOG"; exit 0 ;;
-  --nur-server) NUR_SERVER=1 ;;
+  --server-only|--nur-server) NUR_SERVER=1 ;;
 esac
 if ! curl -s -o /dev/null --max-time 1 "$URL"; then
   nohup /usr/bin/python3 "$HIER/openlibary.py" --port "$PORT" --ohne-browser >> "$LOG" 2>&1 < /dev/null &

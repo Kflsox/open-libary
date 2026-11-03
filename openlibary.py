@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""Open Libary: lokale Oberfläche über die Sample-Bibliothek, wie Splice für den eigenen Bestand.
+"""Open Libary: a local interface for your sample library, like Splice for the samples you already own.
 
   python3 openlibary.py [--port 8765] [--ohne-browser]
 
-Quellen (nur gelesen, nichts davon wird verändert):
-  - Bibliothek/bestand.csv im Musik-Projektordner (lokal.json „musik“; alle eigenen Samples plus geprüfte Netz-Packs)
-  - die gehoer-Datenbank ~/.cache/gehoer/bibliothek.sqlite (gemessene BPM, Tonart, Takte, Swing, Halftime, Instrumente,
-    Stil, Einzelschlag-Klasse), sobald es sie gibt, und daneben openlibary_netz.sqlite (siehe Messen)
-  - zusaetze.csv neben diesem Skript: was die Open Libary selbst aus dem Netz geladen hat (netz.py)
-  - _herkunft.csv einer sortierten Sample-Sammlung (lokal.json „library_neu“): swing, gefuehl, live (über md5)
+Sources (read only, none of them is changed):
+  - Bibliothek/bestand.csv in the music project folder (lokal.json "musik"; all own samples plus checked Web packs)
+  - the gehoer database ~/.cache/gehoer/bibliothek.sqlite (analyzed BPM, key, bars, swing, halftime, instruments,
+    style, one-shot class) once it exists, and next to it openlibary_netz.sqlite (see analysis)
+  - zusaetze.csv next to this script: what Open Libary itself downloaded from the Web (netz.py)
+  - _herkunft.csv of a sorted sample collection (lokal.json "library_neu"): swing, gefuehl, live (via md5)
 
-Geschrieben wird nur: zusaetze.csv, geladene Dateien unter Samples/Frei (Netz)/ (mit LIZENZ.txt und QUELLE.txt) und,
-über gehoer bibliothek scan, die eigene gehoer-Datenbank openlibary_netz.sqlite: jede fertig geladene Netz-Datei und
-jeder Klick auf "Messen" (eigene Datei, keine Konkurrenz mit dem Vollscan). In gehoers Hauptdatenbank schreibt die Open
-Libary nie (seit 20.10.2026 abends, siehe Messdienst). Dazu (Paket 3) gerechnete Fassungen unter
-Samples/Open Libary Renders/ (Umgebung OPENLIBARY_RENDERS) mit ihrer Liste .renders.json.
-Testläufe: OPENLIBARY_NETZ_ZIEL und OPENLIBARY_ZUSAETZE lenken Downloads in einen anderen Ordner, GEHOER_BIBLIOTHEK die
-Hauptdatenbank (openlibary_netz.sqlite liegt dann daneben, OPENLIBARY_NETZ_DB setzt sie einzeln), OPENLIBARY_MESS_PRIO
-den Vorsatz vor gehoer (Standard "nice -n 10").
+Written are only: zusaetze.csv, downloaded files under Samples/Frei (Netz)/ (with LIZENZ.txt and QUELLE.txt) and,
+through gehoer bibliothek scan, Open Libary's own gehoer database openlibary_netz.sqlite: every finished Web download and
+every click on "Analyze" (a separate file, no competition with the full scan). Open Libary never writes into gehoer's
+main database (since the evening of 20.10.2026, see Messdienst). Also rendered versions under
+Samples/Open Libary Renders/ (environment OPENLIBARY_RENDERS) with their list .renders.json.
+Test runs: OPENLIBARY_NETZ_ZIEL and OPENLIBARY_ZUSAETZE send downloads to another folder, GEHOER_BIBLIOTHEK the
+main database (openlibary_netz.sqlite then sits next to it, OPENLIBARY_NETZ_DB sets it on its own), OPENLIBARY_MESS_PRIO
+the prefix before gehoer (default "nice -n 10").
 
-Nur Standardbibliothek, läuft mit dem Python 3.9 von macOS. Der Server hört nur auf 127.0.0.1 und nimmt nur Anfragen
-mit eigenem Host an (Schutz gegen fremde Webseiten im Browser, gefunden im Test vom 19.10.2026).
+Standard library only, runs with the Python 3.9 of macOS. The server listens only on 127.0.0.1 and only accepts
+requests addressed to its own host (protection against other web pages in the browser, found in a test on 19.10.2026).
 """
 import argparse
 import collections
@@ -49,37 +49,39 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-# Fertige App (03.11.2026): der Code liegt im Programmpaket, die Nutzerdaten unter OPENLIBARY_DATEN (die App setzt
-# ~/Library/Application Support/Open Libary). sammlungen, verlauf und korrekturen lesen ihren Pfad beim Import, darum
-# steht das vor den Imports. Ohne OPENLIBARY_DATEN bleibt alles neben dem Code (Jeremias' Einrichtung, einrichten.sh).
+# Packaged app: the code lives in the app bundle, user data under OPENLIBARY_DATEN (the app sets
+# ~/Library/Application Support/Open Libary). sammlungen, verlauf and korrekturen read their path on import, so this
+# comes before the imports. Without OPENLIBARY_DATEN everything stays next to the code (the author's setup, einrichten.sh).
 _DATEN = os.environ.get("OPENLIBARY_DATEN")
 if _DATEN:
     os.makedirs(_DATEN, exist_ok=True)
-    # die fertige App ist für sich: auch auf Jeremias' Mac keine Mischung mit seiner Bibliothek, gehoer und Klang-
-    # Datenbank (Prüfung 03.11.: sonst sah er seinen Bestand ohne Favoriten, Downloads gingen in sein Frei (Netz))
+    # the packaged app stands on its own: even on the author's Mac no mixing with his library, gehoer and sound
+    # database (otherwise he saw his library without favorites, and downloads went into his Frei (Netz))
     for _var, _datei in (("OPENLIBARY_SAMMLUNGEN", "sammlungen.json"), ("OPENLIBARY_VERLAUF", "verlauf.json"),
                          ("OPENLIBARY_KORREKTUREN", "korrekturen.json"), ("GEHOER_BIBLIOTHEK", "gehoer.sqlite"),
                          ("OPENLIBARY_NETZ_DB", "netz.sqlite"), ("OPENLIBARY_KLANG_DB", "klang.sqlite"),
                          ("OPENLIBARY_GEHOER", "kein-gehoer"), ("OPENLIBARY_LEICHT_DB", "leicht.sqlite")):
         os.environ.setdefault(_var, os.path.join(_DATEN, _datei))
 
-import plattform         # 03.11.2026: Mac, Windows, Linux
-import audioform         # 03.11.2026: AIFF ohne ffmpeg, „beim Ziehen als WAV“
+import plattform         # Mac, Windows, Linux
+import audioform         # AIFF without ffmpeg, "as WAV when dragging"
 import netz
 import sammlungen
-import verlauf          # Paket 4: gehört und gezogen
-import korrekturen      # Paket 6: Art, Loop/One-Shot, BPM, Tonart, Lizenz von Hand
-import ordner           # Musiker-Test 03.11.2026: eigene Ordner in der App
-import klangnaehe       # Musiker-Test 03.11.2026: Klang-Fingerabdruck für „Ähnliche“
-import leicht           # Nutzertest 2, 03.11.2026: Tempo und Grundton ohne gehoer
+import verlauf          # played and dragged
+import korrekturen      # type, loop/one-shot, BPM, key, license by hand
+import ordner           # your own folders in the app
+import klangnaehe       # sound fingerprint for "Similar"
+import leicht           # tempo and root note without gehoer
+import i18n             # interface language (English source, lang/<code>.json)
+from i18n import tx, N_
 
 HIER = Path(__file__).resolve().parent
-DATEN = Path(_DATEN) if _DATEN else HIER        # Nutzerdaten (siehe oben)
+DATEN = Path(_DATEN) if _DATEN else HIER        # user data (see above)
 
 
 def _lokal():
-    """Eigene Einrichtung, nicht im Repo: lokal.json neben dem Code, etwa {"musik": "~/Musik-Projekt",
-    "library_neu": "~/Samples/_herkunft.csv", "gehoer_code": "~/gehoer"}. Ohne die Datei gelten neutrale Vorgaben."""
+    """Your own setup, not in the repo: lokal.json next to the code, for example {"musik": "~/Musik-Projekt",
+    "library_neu": "~/Samples/_herkunft.csv", "gehoer_code": "~/gehoer"}. Without the file, neutral defaults apply."""
     try:
         with open(HIER / "lokal.json", encoding="utf-8") as f:
             return {k: os.path.expanduser(v) for k, v in json.load(f).items() if isinstance(v, str) and v}
@@ -88,59 +90,59 @@ def _lokal():
 
 
 LOKAL = _lokal()
-# Musik-Projektordner mit Bibliothek/bestand.csv (gewachsene Einrichtung); fertige Apps und Fremde haben keinen
+# music project folder with Bibliothek/bestand.csv (the author's grown setup); packaged apps and other users have none
 MUSIK = Path(os.environ.get("OPENLIBARY_MUSIK") or (LOKAL.get("musik") if not _DATEN else "") or DATEN / "kein-musikordner")
 BESTAND = MUSIK / "Bibliothek/bestand.csv"
 URTEILE = MUSIK / "Bibliothek/funde-teile/netz-urteile.tsv"
 GEHOER_DB = Path(os.environ.get("GEHOER_BIBLIOTHEK", Path.home() / ".cache/gehoer/bibliothek.sqlite"))
-# eigene gehoer-Datenbank der Open Libary: Netz-Downloads und "Messen" während eines laufenden Vollscans
+# Open Libary's own gehoer database: Web downloads and "Analyze" while a full scan is running
 NETZ_DB = Path(os.environ.get("OPENLIBARY_NETZ_DB", GEHOER_DB.parent / "openlibary_netz.sqlite"))
-VOLLSCAN_PID = GEHOER_DB.with_name(GEHOER_DB.stem + ".vollscan.pid")    # schreibt gehoer/vollscan.sh
+VOLLSCAN_PID = GEHOER_DB.with_name(GEHOER_DB.stem + ".vollscan.pid")    # written by gehoer/vollscan.sh
 LIBRARY_NEU = Path(os.environ.get("OPENLIBARY_LIBRARY_NEU") or LOKAL.get("library_neu") or DATEN / "kein-herkunft.csv")
 MESS_PRIO = os.environ.get("OPENLIBARY_MESS_PRIO", "nice -n 10").split()
-ZUSAETZE = Path(os.environ.get("OPENLIBARY_ZUSAETZE", DATEN / "zusaetze.csv"))   # Testläufe: anderer Ort
-# Musiker-Test 03.11.2026: eigene Ordner, in der App hinzugefügt (ordner.py)
+ZUSAETZE = Path(os.environ.get("OPENLIBARY_ZUSAETZE", DATEN / "zusaetze.csv"))   # test runs: another place
+# your own folders, added in the app (ordner.py)
 ORDNER_LISTE = Path(os.environ.get("OPENLIBARY_ORDNER", DATEN / "ordner.json"))
 EIGENE = Path(os.environ.get("OPENLIBARY_EIGENE", DATEN / "eigene.csv"))
-# Ohne Musik-Projektordner: Downloads und Renders unter ~/Music/Open Libary
+# Without a music project folder: downloads and renders under ~/Music/Open Libary
 ABLAGE = Path.home() / "Music/Open Libary"
 _EIGENE_ABLAGE = MUSIK.is_dir()
 NETZ_ZIEL = Path(os.environ.get("OPENLIBARY_NETZ_ZIEL", MUSIK / "Samples/Frei (Netz)" if _EIGENE_ABLAGE else ABLAGE / "Netz"))
 DRUM_ZIEL = Path(os.environ.get("OPENLIBARY_DRUM_ZIEL",
-                                MUSIK / "Drum Kits/Frei (Netz)" if _EIGENE_ABLAGE else ABLAGE / "Netz Drums"))   # Drum-One-Shots
+                                MUSIK / "Drum Kits/Frei (Netz)" if _EIGENE_ABLAGE else ABLAGE / "Netz Drums"))   # drum one-shots
 GEHOER = os.environ.get("OPENLIBARY_GEHOER") or shutil.which("gehoer") or str(Path.home() / ".local/bin/gehoer")
 FFMPEG = plattform.werkzeug("ffmpeg") or "ffmpeg"
 GEHOER_PY = Path.home() / ".local/share/gehoer/venv/bin/python"
 KLANG_DB = Path(os.environ.get("OPENLIBARY_KLANG_DB", GEHOER_DB.parent / "openlibary_klang.sqlite"))
-LEICHT_SWIFT = Path(os.environ.get("OPENLIBARY_LEICHT", HIER / "app/leichtmessen"))     # Mac ohne numpy
+LEICHT_SWIFT = Path(os.environ.get("OPENLIBARY_LEICHT", HIER / "app/leichtmessen"))     # Mac without numpy
 LEICHT_DB = Path(os.environ.get("OPENLIBARY_LEICHT_DB", plattform.datenordner() / "leicht.sqlite"))
-KLANG_AUTO_MAX = 2000        # neue Dateien eines Ordners, die von selbst einen Fingerabdruck bekommen (0,2 s je Datei)
+KLANG_AUTO_MAX = 2000        # new files of a folder that get a fingerprint on their own (0.2 s per file)
 GEHOER_CODE = Path(os.environ.get("OPENLIBARY_GEHOER_CODE") or LOKAL.get("gehoer_code") or Path.home() / ".local/share/gehoer/code")
 WANDEL_CACHE = Path(tempfile.gettempdir()) / "openlibary-wandel"
-WANDEL_MAX_BYTES = 1024 ** 3        # älteste Wandlungen fliegen raus, wenn der Zwischenspeicher größer wird
+WANDEL_MAX_BYTES = 1024 ** 3        # the oldest conversions are dropped when the cache grows bigger
 PORT = 8765
-CODE_STAND = os.path.getmtime(__file__)     # fertige App: erkennt einen alten Server nach einem Update (--ersetzen)
-# Schlüssel und Logins (Freesound): nicht im Code-Ordner, damit der weitergegeben werden kann
+CODE_STAND = os.path.getmtime(__file__)     # packaged app: detects an old server after an update (--ersetzen)
+# Keys and logins (Freesound): not in the code folder, so that folder can be passed on
 KONFIG_ORDNER = Path(os.environ.get("OPENLIBARY_KONFIG", plattform.konfigordner()))
-# /favicon.ico (vorher 404 in jeder Konsole): vier Balken einer Wellenform, eingebettet
+# /favicon.ico (before: a 404 in every console): four bars of a waveform, embedded
 FAVICON = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="2" fill="#1f2a44"/>'
            b'<g fill="#e8e4d8"><rect x="2" y="6" width="2" height="4"/><rect x="5" y="3" width="2" height="10"/>'
            b'<rect x="8" y="5" width="2" height="6"/><rect x="11" y="2" width="2" height="12"/></g></svg>')
 STILE = HIER / "stile"
-STIL_NAMEN = {   # Reihenfolge = Reihenfolge in den Einstellungen; Text für die Einstellungen
-    "glas": ("Liquid Glass", "Allein alles aus Glas, sonst Kopf und Player."),   # kurz: zwei Zeilen auf der Karte
-    "kobalt": ("Kobalt", "Hell, Filter und Player in kräftigem Kobaltblau, die Liste schwarz auf Weiß."),
-    "kobalt-lila": ("Lila", "Wie Kobalt, nur in Violett."),
-    "partitur": ("Partitur", "Hell wie Notenpapier, Zinnoberrot als einzige Farbe, Namen in Serifenschrift."),
-    "tracker": ("Tracker", "Dunkles Flaschengrün, alles in Monospace wie ein alter Musik-Tracker."),
-    "werkstatt-alt": ("Werkstatt", "Dunkles Braun mit Bernstein, der erste Entwurf."),
+STIL_NAMEN = {   # order = order in Settings; texts for Settings
+    "glas": ("Liquid Glass", N_("On its own all glass, otherwise header and player.")),   # short: two lines on the card
+    "kobalt": (N_("Cobalt"), N_("Light, filters and player in strong cobalt blue, the list black on white.")),
+    "kobalt-lila": (N_("Violet"), N_("Like Cobalt, only in violet.")),
+    "partitur": (N_("Score"), N_("Light like music paper, vermilion as the only color, names in a serif font.")),
+    "tracker": ("Tracker", N_("Dark bottle green, everything in monospace like an old music tracker.")),
+    "werkstatt-alt": (N_("Workshop"), N_("Dark brown with amber, the first draft.")),
 }
-KEIN_STIL = {"grundriss", "glasschicht"}   # Bausteine, keine wählbaren Stile
+KEIN_STIL = {"grundriss", "glasschicht"}   # building blocks, not selectable styles
 
 
 def stil_normal(text):
-    """stil.txt seit 24.10.2026: "glas" (Glas pur), "kobalt" (ohne Glas) oder "glas+kobalt" (Farbstil mit Glasschicht).
-    Alte Werte (ein Name) gelten weiter. Gibt den bereinigten Wert zurück oder None, wenn er nicht taugt."""
+    """stil.txt since 24.10.2026: "glas" (glass only), "kobalt" (no glass) or "glas+kobalt" (color style with glass
+    layer). Old values (one name) still work. Returns the cleaned value, or None when it is not usable."""
     teile = [t for t in re.split(r"[+\s,]+", str(text or "").strip().lower()) if t]
     if not teile or any(not re.match(r"^[a-z0-9-]+$", t) or t in KEIN_STIL or not (STILE / f"{t}.css").is_file() for t in teile):
         return None
@@ -157,8 +159,25 @@ def stil_aktuell():
     return stil_normal(datei.read_text(encoding="utf-8") if datei.is_file() else "") or "kobalt"
 
 
+def sprache_gespeichert():
+    """Interface language from sprache.txt next to stil.txt (English when missing)."""
+    datei = DATEN / "sprache.txt"
+    try:
+        return i18n.normal(datei.read_text(encoding="utf-8") if datei.is_file() else "")
+    except OSError:
+        return i18n.DEFAULT
+
+
+def seite_html():
+    """seite.html with the chosen style and language filled in; the translation table travels inside the page, so the
+    first paint is already in the right language."""
+    tabelle = json.dumps(i18n.table(i18n.current()), ensure_ascii=False).replace("<", "\\u003c")
+    return ((HIER / "seite.html").read_text(encoding="utf-8").replace("__STIL__", stil_aktuell())
+            .replace("__LANG__", i18n.current()).replace("/*__TRANSLATION__*/{}", tabelle))
+
+
 def stile_liste():
-    """Alle Stildateien außer Grundriss und Glasschicht, mit Beschreibung aus dem Kopfkommentar und den Hauptfarben."""
+    """All style files except grundriss and glasschicht, with the description from the header comment and the main colors."""
     namen = list(STIL_NAMEN) + sorted(p.stem for p in STILE.glob("*.css") if p.stem not in STIL_NAMEN and p.stem not in KEIN_STIL)
     aus = []
     for name in namen:
@@ -170,42 +189,42 @@ def stile_liste():
         beschr = re.sub(r"\s+", " ", kopf.group(1)).strip() if kopf else ""
         beschr = re.sub(r"^[^:]{1,40}:\s*", "", beschr)
         farben = {}
-        for var in ("grund", "leiste", "signal", "text", "fuss", "glas-probe"):   # glas-probe: Kapsel in der Vorschau bei an Glas
+        for var in ("grund", "leiste", "signal", "text", "fuss", "glas-probe"):   # glas-probe: capsule in the preview with glass on
             m = re.search(r"--" + var + r":\s*(#[0-9a-fA-F]{3,8})", text)
             if m:
                 farben[var] = m.group(1)
         titel, text_kurz = STIL_NAMEN.get(name, (name, beschr))
-        aus.append({"name": name, "titel": titel, "beschreibung": text_kurz, "farben": farben})
+        aus.append({"name": name, "titel": tx(titel), "beschreibung": tx(text_kurz), "farben": farben})
     return aus
 
 TONARTEN = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
 _GLEICH = {"Db": "C#", "D#": "Eb", "Gb": "F#", "G#": "Ab", "A#": "Bb", "Cb": "B", "Fb": "E", "E#": "F", "B#": "C"}
 GRUNDTON_ARTEN = {"808", "bass"}
-# Paket 2 (23.10.2026): tonale One-Shots zeigen ihren Grundton als Ton mit Oktave ("G1"), nur bei lo "oneshot";
-# Loops dieser Arten behalten die Tonart. Art aus dem Bestand oder gehoers Einzelschlag-Klasse.
+# Tonal one-shots show their root note as a note with octave ("G1"), only with lo "oneshot";
+# loops of these types keep the key. Type from the library or gehoer's one-shot class.
 GRUNDTON_ONESHOT = {"kick", "snare", "tom", "perc", "808", "bass"}
 
 
 def grundton_zeile(z):
-    """Zeigt und filtert diese Zeile den Grundton statt einer Tonart?"""
+    """Does this row show and filter the root note instead of a key?"""
     return z["art"] in GRUNDTON_ARTEN or (z["lo"] == "oneshot" and (z["art"] in GRUNDTON_ONESHOT
                                                                     or z.get("klasse") in GRUNDTON_ONESHOT))
 
 
 def pegel_wert(v, lo, hi):
-    """Messwert nur im plausiblen Bereich (gehoer hat einzelne Ausreißer wie 739 LUFS), sonst None."""
+    """Measured value only within a plausible range (gehoer has single outliers like 739 LUFS), otherwise None."""
     return round(float(v), 1) if v is not None and lo <= v <= hi else None
 GENRE_WOERTER = {"drill", "trap", "grime", "ukg", "garage", "house", "techno", "dnb", "jungle", "lofi", "boombap", "afro",
                  "afrobeat", "amapiano", "reggaeton", "dancehall", "jersey", "memphis", "phonk", "rnb", "soul", "funk",
-                 "jazz", "dubstep", "hiphop", "trance", "breakbeat", "footwork", "baile", "cumbia", "dembow", "hyperpop"}    # tragen meist nur einen Grundton, kein Dur oder Moll
+                 "jazz", "dubstep", "hiphop", "trance", "breakbeat", "footwork", "baile", "cumbia", "dembow", "hyperpop"}    # mostly carry only a root note, no major or minor
 LIZENZ_ERKLAERUNG = {
-    "ja": "Lizenz gelesen und frei nutzbar, auch kommerziell",
-    "unklar": "Herkunft, Kaufbeleg oder Kontoinhaber ungeklärt; vor Verkauf klären",
-    "nein": "laut Auswertung nicht nutzbar (Lizenz verbietet es oder Herkunft unrechtmäßig)",
-    "ungeprüft": "selbst aus dem Netz geladen; die Lizenz hat der Hochladende eingetragen, Herkunft nicht geprüft",
-    "unbekannt": "keine Lizenzangabe gefunden",
+    "ja": N_("License read and free to use, commercially too"),
+    "unklar": N_("Source, purchase record or account holder unclear; clear it up before selling"),
+    "nein": N_("Not usable according to the review (the license forbids it or the source is unlawful)"),
+    "ungeprüft": N_("Downloaded yourself from the Web; the uploader entered the license, the source is not checked"),
+    "unbekannt": N_("No license information found"),
 }
-SPLICE_GRUND = "Splice-Lizenz gilt nur für den Kontoinhaber und ist nicht übertragbar"
+SPLICE_GRUND = N_("The Splice license applies only to the account holder and cannot be transferred")
 
 
 def nfc(s):
@@ -213,7 +232,7 @@ def nfc(s):
 
 
 def tonart_norm(t):
-    """'F#m', 'Gbm', 'A min', 'f#min', 'C' -> (Grundton aus TONARTEN, 'm' oder '') oder None."""
+    """'F#m', 'Gbm', 'A min', 'f#min', 'C' -> (root note from TONARTEN, 'm' or '') or None."""
     if not t:
         return None
     m = re.match(r"^\s*([A-Ga-g])\s*(#|b|sharp|flat)?\s*(m|min|minor|moll|maj|major|dur)?\s*$", t.strip(), re.I)
@@ -228,7 +247,7 @@ def tonart_norm(t):
 
 
 def camelot_nachbarn(ton, modus):
-    """Verträgliche Tonarten: gleiche, parallele Dur/Moll, eine Quinte rauf und runter (Camelot ±1)."""
+    """Compatible keys: the same one, the relative major or minor, a fifth up and down (Camelot ±1)."""
     pc = TONARTEN.index(ton)
     if modus == "m":
         roh = [(pc, "m"), ((pc + 7) % 12, "m"), ((pc + 5) % 12, "m"), ((pc + 3) % 12, "")]
@@ -242,50 +261,50 @@ def zahl(s):
         w = float(s) if s not in (None, "") else None
     except (ValueError, TypeError):
         return None
-    return None if w is None or w != w or w in (float("inf"), float("-inf")) else w   # nan und inf wie leer
+    return None if w is None or w != w or w in (float("inf"), float("-inf")) else w   # nan and inf count as empty
 
 
-# ================================================================ gehoer-Werte: Swing, Takte, Einzelschlag
+# ================================================================ gehoer values: swing, bars, one-shot class
 
 SWING_KLASSEN = ["gerade", "leicht", "deutlich", "triole"]
-# Linke Spalte (24.10.2026): „Swing“ fasst leicht und deutlich zusammen (swing=swing), auch in swing_nicht
+# Left column (24.10.2026): "Swing" combines light and strong (swing=swing), in swing_nicht too
 SWING_GRUPPEN = {"swing": ("leicht", "deutlich")}
-# Sieben feste Genres (Parameter genre, genre_nicht): ODER über verwandte Vibe-Wörter, die Tags im Bestand bleiben
+# Seven fixed genres (parameters genre, genre_nicht): OR over related vibe words; the tags in the library stay
 GENRE_GRUPPEN = {"grime": ("grime",), "ukg": ("ukg", "garage"), "trap": ("trap",), "drill": ("drill",),
                  "house": ("house",), "dnb": ("dnb", "jungle"), "hiphop": ("hiphop", "boombap")}
-WORT_GENRE = {w: k for k, ws in GENRE_GRUPPEN.items() for w in ws}      # Zählen in einem Durchgang
+WORT_GENRE = {w: k for k, ws in GENRE_GRUPPEN.items() for w in ws}      # counting in one pass
 TAKTE_CHIPS = [1, 2, 4, 8, 16]
-TAKTE_GERECHNET = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32}   # Loop-Längen, die aus Länge und Tempo zählen
-# Einzelschlag-Klassen in der Reihenfolge der Filter; gehoer schreibt dieselben Wörter (klang.KLASSEN, dort zusätzlich
-# fx, vocal und bass, die hier keine Klasse sind)
+TAKTE_GERECHNET = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32}   # loop lengths that count when computed from length and tempo
+# One-shot classes in the order of the filters; gehoer writes the same words (klang.KLASSEN, which also has
+# fx, vocal and bass, which are no class here)
 EINZELSCHLAG = ["kick", "snare", "clap", "hat", "cymbal", "perc", "tom", "rim", "808", "melodisch"]
-# gehoer schreibt in oneshot_klasse auch die Kategorie aus dem Namen, bei "Kick Drum #1" etwa kickloop (Test 20.10.)
+# gehoer also writes the category from the name into oneshot_klasse, for "Kick Drum #1" e.g. kickloop (test 20.10.)
 KLASSE_AUS_GEHOER = {"kickloop": "kick"}
-# Kicks aus dem Namen nur bis zu dieser Länge: längere sind meist 808-artige Kicks mit langer Fahne, Impacts oder Racks
-# mit mehreren Schlägen (Test 20.10.: 42 "Kicks" über 2 s, eine davon 28 s lang); gemessene zählen trotzdem
+# Kicks from the name only up to this length: longer ones are mostly 808-like kicks with a long tail, impacts or racks
+# with several hits (test 20.10.: 42 "kicks" over 2 s, one of them 28 s long); analyzed ones count anyway
 KICK_MAX_S = 2.0
-# Halftime heißt "Snare auf Schlag 3": nur bei Drum-Loops (STIMMUNG-REGELN.md: Breaks, Tops, Fills). Test 20.10.: ein
-# Rhodes-Loop ohne Snare stand als Halftime
+# Halftime means "snare on beat 3": only for drum loops (breaks, tops, fills). Test 20.10.: a Rhodes loop without a
+# snare was listed as halftime
 GEFUEHL_ARTEN = {"break", "top", "fill", "perc", "hat"}
-SONG_AB_S = 90.0            # länger: ganzer Song, kein Loop (Paket 0)
-SONG_BEHAELT_ART = {"vocal", "fx", "atmo", "foley"}     # lange Acapellas und Field Recordings sind keine Songs
-# gehoers produzenten_begriffe kommen aus einem Klangmodell, unabhängig von seiner Einzelschlag-Klasse. Bei One-Shots
-# mit bekannter Klasse zählen Schlag-Begriffe nur, wenn sie zur Klasse passen (Paket 0: ein Bongo-Sample,
-# gemessen perc, trug den Begriff kick und stand bei "kick" ganz oben)
+SONG_AB_S = 90.0            # longer: a full song, not a loop
+SONG_BEHAELT_ART = {"vocal", "fx", "atmo", "foley"}     # long acapellas and field recordings are not songs
+# gehoer's produzenten_begriffe come from a sound model, independent of its one-shot class. For one-shots with a
+# known class, hit terms only count when they match the class (a bongo sample, analyzed as perc, carried the term
+# kick and stood at the top for "kick")
 BEGRIFF_KLASSE = {"kick": "kick", "snare": "snare", "clap": "clap", "hi-hat": "hat", "open hat": "hat",
                   "cymbal": "cymbal", "percussion": "perc", "shaker": "perc", "tom": "tom", "rim": "rim", "808": "808"}
 KLASSE_VERWANDT = {"kick": {"808"}, "808": {"kick"}, "hat": {"cymbal"}, "cymbal": {"hat"}, "clap": {"snare"},
                    "snare": {"clap", "rim"}, "rim": {"snare", "perc"}, "tom": {"perc"}, "perc": {"tom", "rim"}}
-UNSICHER = 0.5              # wie gehoer: darunter steht hinter dem Wert ein "?"
-BEZUG_TOLERANZ = 0.02       # Swing und Halftime gelten nur beim Tempo, bei dem gehoer sie gemessen hat (2 %)
-# gehoers Wächter (bibliothek.py SCAN_FRIST_S, SCAN_FRIST_JE_S, SCAN_ZUSCHLAG_S, ALLEIN_S): je Datei 120 s plus 4 s je
-# Sekunde Audio, die erste eines Prozesses 600 s länger (Modelle laden); Dateien ab 300 s rechnet der Vollscan allein
+UNSICHER = 0.5              # like gehoer: below this a "?" follows the value
+BEZUG_TOLERANZ = 0.02       # swing and halftime only count at the tempo gehoer analyzed them at (2 %)
+# gehoer's watchdog (bibliothek.py SCAN_FRIST_S, SCAN_FRIST_JE_S, SCAN_ZUSCHLAG_S, ALLEIN_S): per file 120 s plus 4 s
+# per second of audio, the first one of a process 600 s longer (loading models); files from 300 s on the full scan runs alone
 GEHOER_FRIST_S, GEHOER_FRIST_JE_S, GEHOER_ZUSCHLAG_S, GEHOER_ALLEIN_S = 120.0, 4.0, 600.0, 300.0
 
 
 def swing_klasse(x):
-    """Lage der Off-Beat-Achtel (gehoer swing, 0.50 gerade bis 0.67 Triole) -> Klasse nach STIMMUNG-REGELN.md:
-    gerade bis 0.55, leicht 0.56 bis 0.58, deutlich 0.59 bis 0.64, triole ab 0.65 (auf zwei Stellen gerundet)."""
+    """Position of the off-beat eighths (gehoer swing, 0.50 straight to 0.67 triplet) -> class: gerade up to 0.55,
+    leicht 0.56 to 0.58, deutlich 0.59 to 0.64, triole from 0.65 (rounded to two decimals)."""
     if x is None:
         return None
     x = round(x, 2)
@@ -293,14 +312,14 @@ def swing_klasse(x):
 
 
 def _sicherheit(text, name):
-    """'Sicherheit swing 0.86, halftime 0.85, live 0.80' (stimmung_quelle der Library-Neu) -> 0.86 für 'swing'."""
+    """'Sicherheit swing 0.86, halftime 0.85, live 0.80' (stimmung_quelle of the Library-Neu) -> 0.86 for 'swing'."""
     m = re.search(r"\b" + name + r" (\d\.\d+)", text or "")
     return float(m.group(1)) if m else None
 
 
-# ================================================================ Wörter
+# ================================================================ Words
 
-_SYNONYME = [   # beide Seiten (Index und Suche) laufen hier durch
+_SYNONYME = [   # both sides (index and search) run through this
     (r"hi[\s_-]?hats?|\bhh\b", " hihat hat "), (r"lo[\s_-]?fi", " lofi "), (r"boom[\s_-]?bap", " boombap "),
     (r"one[\s_-]?shots?", " oneshot "), (r"\bvox\b", " vocal "), (r"\bperc\b|percussion", " perc percussion "),
     (r"shaker|conga|bongo|tambourine|cowbell|clave", r" perc \g<0> "),
@@ -316,8 +335,8 @@ def woerter(text):
 
 
 def stimmung_woerter(text):
-    """Vibe-Wörter wie woerter, aber Jahrzehnte bleiben ganz: "70s", "90's", "2000s" statt "70", "90", "2000" (Test
-    20.10.: die Vibes "70" und "90" sahen neben der BPM-Spalte wie ein Tempo aus); "1970s" wird "70s"."""
+    """Vibe words like woerter, but decades stay whole: "70s", "90's", "2000s" instead of "70", "90", "2000" (test
+    20.10.: the vibes "70" and "90" looked like a tempo next to the BPM column); "1970s" becomes "70s"."""
     w, aus, i = woerter(text), [], 0
     while i < len(w):
         if i + 1 < len(w) and w[i + 1] == "s" and re.fullmatch(r"(?:19|20)?\d0", w[i]):
@@ -332,21 +351,21 @@ def stimmung_woerter(text):
 # ================================================================ Index
 
 class Index:
-    """Alle Samples im Speicher (rund 63.000 Zeilen), dazu Messwerte aus gehoer. Neu geladen wird im Hintergrund,
-    bis dahin antwortet der alte Stand (vorher lud jede gleichzeitige Anfrage selbst: Spitzen von 8.5 s)."""
+    """All samples in memory (around 63,000 rows), plus analysis values from gehoer. Reloading runs in the background;
+    until it is done the old state answers (before, every concurrent request loaded on its own: peaks of 8.5 s)."""
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.lade_lock = threading.Lock()      # höchstens ein Neuladen im Hintergrund (aktuell_halten)
-        self.lauf_lock = threading.Lock()      # Neuladen nacheinander, nie zwei zugleich (laden)
+        self.lade_lock = threading.Lock()      # at most one reload in the background (aktuell_halten)
+        self.lauf_lock = threading.Lock()      # reloads one after another, never two at once (laden)
         self.zeilen, self.nach_pfad, self.md5, self.packs = [], {}, set(), []
         self.pack_menge = set()
-        self.arten = []            # Paket 6: Arten im Bestand (Auswahl beim Bearbeiten)
+        self.arten = []            # types in the library (choice when editing)
         self.stempel = self.fehler = None
         self.gemessen = 0
         self.abdeckung = {}
-        self.version = 0           # Nummer des zuletzt fertig geladenen Stands
-        self.gestartet = 0         # Nummer des zuletzt begonnenen (Messdienst: Werte sind da, sobald version größer ist)
+        self.version = 0           # number of the last fully loaded state
+        self.gestartet = 0         # number of the last started one (Messdienst: values are there once version is greater)
         self.naechster_versuch = 0.0
         self.unlesbar_runden = 0
         self.urteile = self._urteile_lesen()
@@ -365,19 +384,23 @@ class Index:
                 return p.stat().st_mtime
             except OSError:
                 return None
-        # die ersten zwei zählen sofort, der Rest (gehoer-Datenbanken, Library-Neu) höchstens einmal je Minute
+        # the first two count at once, the rest (gehoer databases, Library-Neu) at most once per minute
         return (mt(BESTAND), mt(ZUSAETZE), mt(EIGENE), mt(GEHOER_DB), mt(Path(str(GEHOER_DB) + "-wal")),
                 mt(NETZ_DB), mt(Path(str(NETZ_DB) + "-wal")), mt(LIBRARY_NEU))
 
     def aktuell_halten(self):
         neu = self._stempel()
-        if neu == self.stempel or time.time() < self.naechster_versuch:
+        # the rows carry texts (license reasons, warnings) in the language of the last load: reload after a switch
+        # (not while a load runs: the switch in /api/sprache is loading right now, a second one would only cost time)
+        sprache_alt = getattr(self, "sprache", None) != i18n.current() and not self.lauf_lock.locked()
+        if (neu == self.stempel and not sprache_alt) or time.time() < self.naechster_versuch:
             return
-        # Ändert sich nur eine gehoer-Datenbank (Vollscan schreibt stundenlang) oder die Library-Neu-Liste, höchstens
-        # einmal je Minute neu laden; eigene Downloads (zusaetze.csv) und bestand.csv sofort
-        if self.stempel and neu[:3] == self.stempel[:3] and time.time() - getattr(self, "geladen_um", 0) < 60:
+        # When only a gehoer database changes (the full scan writes for hours) or the Library-Neu list, reload at most
+        # once per minute; your own downloads (zusaetze.csv) and bestand.csv at once
+        if self.stempel and neu[:3] == self.stempel[:3] and not sprache_alt \
+                and time.time() - getattr(self, "geladen_um", 0) < 60:
             return
-        if self.lade_lock.acquire(blocking=False):   # genau einer lädt, im Hintergrund
+        if self.lade_lock.acquire(blocking=False):   # exactly one loads, in the background
             def lauf():
                 try:
                     self.laden()
@@ -386,37 +409,38 @@ class Index:
             threading.Thread(target=lauf, daemon=True).start()
 
     def laden(self):
-        """Index neu aufbauen. Nacheinander (lauf_lock): vorher konnten aktuell_halten, netz.py und der Messdienst
-        zugleich laden, und ein älterer Lauf, der zuletzt fertig wurde, überschrieb neuere Messwerte (Prüfung 20.10.)."""
+        """Rebuild the index. One after another (lauf_lock): before, aktuell_halten, netz.py and the Messdienst could
+        load at the same time, and an older run that finished last overwrote newer analysis values (check 20.10.)."""
         with self.lauf_lock:
             self.gestartet += 1
             self._laden(self.gestartet)
 
     def _laden(self, nr):
         stempel = self._stempel()
-        # gehoer-Datenbanken zuerst: ist eine nicht lesbar, bleibt der alte Stand stehen (sonst stünde die Liste ohne
-        # jeden Messwert da, Prüfung 20.10.), höchstens dreimal hintereinander; danach ohne die unlesbare weiter
+        sprache = i18n.current()       # the texts built into the rows follow this language (aktuell_halten)
+        # gehoer databases first: if one is not readable, the old state stays (otherwise the list would stand there
+        # without any analysis value, check 20.10.), at most three times in a row; after that, go on without it
         reihen, unlesbar = self._gehoer_reihen()
         if unlesbar:
             self.naechster_versuch = time.time() + 30
             self.unlesbar_runden += 1
             if self.zeilen and self.unlesbar_runden <= 3:
-                print(f"Index bleibt beim alten Stand, nicht lesbar: {', '.join(unlesbar)}", flush=True)
+                print(f"Index keeps the old state, not readable: {', '.join(unlesbar)}", flush=True)
                 return
         else:
             self.unlesbar_runden = 0
         zeilen, nach_pfad, md5, fehler = [], {}, set(), None
         quellen = []
-        # Prüfung 03.11.2026: zusaetze.csv zuerst. Netz-Downloads liegen in Ordnern, die auch die Bibliotheks-Skripte
-        # lesen; nach dem Neubau des Bestands am 03.11. standen drei Freesound-CC0-Sounds dort mit „nein“ und
-        # verdeckten Quelle, Urheber und Beleg aus zusaetze.csv (gleicher Pfad: die erste Quelle gewinnt)
+        # zusaetze.csv first. Web downloads sit in folders that the library scripts read too; after the library was
+        # rebuilt on 03.11. three Freesound CC0 sounds stood there with "nein" and hid source, author and record from
+        # zusaetze.csv (same path: the first source wins)
         if ZUSAETZE.is_file():
             quellen.append((ZUSAETZE, "openlibary"))
         if BESTAND.is_file():
             quellen.append((BESTAND, None))
-        elif BESTAND.parent.is_dir():      # ohne Bibliotheksordner (Freunde) ist das kein Fehler, nur leer
-            fehler = f"bestand.csv fehlt ({BESTAND})"
-        if EIGENE.is_file():               # Musiker-Test 03.11.: eigene Ordner aus der App
+        elif BESTAND.parent.is_dir():      # without a library folder (friends) this is not an error, just empty
+            fehler = tx("bestand.csv is missing ({pfad})", pfad=BESTAND)
+        if EIGENE.is_file():               # your own folders from the app
             quellen.append((EIGENE, "ordner"))
         render_praefix = nfc(str(RENDER_ZIEL)) + os.sep
         for datei, herkunft in quellen:
@@ -427,15 +451,15 @@ class Index:
                         md5.add(r["md5"])
                     if not pfad or pfad in nach_pfad:
                         continue
-                    if pfad.startswith(render_praefix):    # Paket 3: gerechnete Fassungen sind keine neuen Samples
+                    if pfad.startswith(render_praefix):    # rendered versions are not new samples
                         continue
                     z = self._aus_bestand(r, pfad, herkunft)
-                    z["_eigen"] = datei == EIGENE        # ordner.py führt nur, was nicht schon anders im Index steht
+                    z["_eigen"] = datei == EIGENE        # ordner.py only lists what is not already in the index otherwise
                     nach_pfad[pfad] = z
                     zeilen.append(z)
         self._doppelte_markieren(zeilen)
-        # Prüfung 03.11.: Kopie eines Packs aus dem Bestand in einem eigenen Ordner (Backup, Downloads) erscheint nicht
-        # doppelt; sie zählt als Kopie der Bestandszeile (deren Lizenz gilt), sichtbar mit „Doppelte einzeln zeigen“
+        # A copy of a library pack in one of your own folders (backup, downloads) does not show up twice; it counts as
+        # a copy of the library row (whose license applies) and is visible when duplicates are shown separately
         fremd_md5 = {}
         for z in zeilen:
             if z["md5"] and not z["_eigen"]:
@@ -443,27 +467,27 @@ class Index:
         for z in zeilen:
             if z["_eigen"] and z["md5"] and z["md5"] in fremd_md5:
                 o = fremd_md5[z["md5"]]
-                if not os.path.exists(o["pfad"]):     # die Bestandszeile zeigt ins Leere: die eigene bleibt sichtbar
+                if not os.path.exists(o["pfad"]):     # the library row points to nothing: your own one stays visible
                     o["ist_kopie"] = True
                     fremd_md5[z["md5"]] = z
                     continue
                 z["ist_kopie"] = True
                 o["kopien"] = o.get("kopien", 0) + 1
-            elif z["_eigen"] and z["md5"]:      # Nutzertest 2: dieselbe Datei mehrfach in eigenen Ordnern (Kits)
+            elif z["_eigen"] and z["md5"]:      # the same file several times in your own folders (kits)
                 fremd_md5[z["md5"]] = z
         gemessen = self._gehoer_einlesen(nach_pfad, reihen)
-        self._leicht_einlesen(zeilen)          # Nutzertest 2: füllt nur Lücken, Hand und gehoer gehen vor
-        if unlesbar:   # ohne die unlesbare Datenbank: Stempel offen lassen, frühestens in 30 s nochmal
+        self._leicht_einlesen(zeilen)          # only fills gaps, manual values and gehoer come first
+        if unlesbar:   # without the unreadable database: leave the stamp open, try again in 30 s at the earliest
             stempel = None
         self._library_neu_einlesen(zeilen)
         self._live_aus_tags(zeilen)
-        # Paket 6: Korrekturen von Hand gewinnen vor Name, Splice-Datenbank und gehoer (vor Takten und Suchwörtern)
+        # Manual corrections win over name, Splice database and gehoer (before bars and search words)
         md5_von = collections.defaultdict(list)
         for z in zeilen:
             if z["md5"]:
                 md5_von[z["md5"]].append(z["pfad"])
         einzeln = korrekturen.fuer_index(nach_pfad, md5_von)
-        pack_ent = korrekturen.packs()      # Paket 7: Entscheid je Pack, Einzelkorrekturen gehen vor
+        pack_ent = korrekturen.packs()      # decision per pack; single corrections come first
         for z in zeilen:
             felder = einzeln.get(z["pfad"])
             if felder is not None or (pack_entscheidbar(z) and korrekturen.pack_felder(z["pack"], pack_ent)):
@@ -478,10 +502,11 @@ class Index:
         with self.lock:
             self.arten = arten
             self.zeilen, self.nach_pfad, self.md5, self.packs = zeilen, nach_pfad, md5, packs
-            # Paket 7: Pack-Entscheide nur für Packs im Index, ohne die Ordner der Einzelsounds
+            # pack decisions only for packs in the index, without the folders of single sounds
             self.pack_menge = {z["pack"] for z in zeilen if pack_entscheidbar(z)}
             self.stempel, self.fehler, self.gemessen, self.abdeckung = stempel, fehler, gemessen, abdeckung
             self.version = nr
+            self.sprache = sprache
             self.geladen_um = time.time()
         SUCH_CACHE.clear()
 
@@ -493,7 +518,7 @@ class Index:
     def _aus_bestand(self, r, pfad, herkunft):
         tn = tonart_norm(r.get("tonart"))
         m = self._AUSGESCHRIEBEN.search(r.get("datei") or "")
-        if m:   # "D Sharp Min" las bestand.csv als "D" (Dur); Name gewinnt
+        if m:   # "D Sharp Min" was read by bestand.csv as "D" (major); the name wins
             tn = tonart_norm(m.group(1) + m.group(2) + (m.group(3) or ""))
         art = r.get("art") or ""
         lo = r.get("loop_oneshot") or ""
@@ -501,8 +526,8 @@ class Index:
         dauer = zahl(r.get("dauer"))
         bpm, bpm_quelle = zahl(r.get("tempo")), r.get("tempo_quelle") or ("name" if r.get("tempo") else "")
         ordner = os.path.dirname(pfad)
-        # ACID-Block: FL schreibt 140 als Standard hinein, auch in One-Shots (Test 19.10.2026: 966 Werte, 421-mal 140,
-        # Hat-"Loops" unter 2 s). Gilt nur, wenn die Datei mindestens einen Takt lang ist und kein One-Shot-Ordner.
+        # ACID chunk: FL writes 140 into it by default, one-shots too (test 19.10.2026: 966 values, 421 times 140,
+        # hat "loops" under 2 s). Only counts when the file is at least one bar long and not in a one-shot folder.
         if bpm_quelle == "acid_block" and bpm:
             takt = 240.0 / bpm
             if (dauer is not None and dauer < takt * 0.95) or (
@@ -510,26 +535,26 @@ class Index:
                 bpm, bpm_quelle, lo = None, "", "oneshot"
         if art == "808" and not lo and (dauer or 0) < 8:
             lo = "oneshot"
-        # BPM vor einer Tonart im Namen ("1005 STARTER 140 GM", "_130-Amin"), nur bei Loops
+        # BPM before a key in the name ("1005 STARTER 140 GM", "_130-Amin"), loops only
         if bpm is None and lo != "oneshot":
             b = self._BPM_IM_NAMEN.search(os.path.splitext(name)[0])
             if b and 60 <= int(b.group(1)) <= 200:
                 bpm, bpm_quelle = float(b.group(1)), "name"
         stimmung = []
         for teil in re.split(r"[;,|]", r.get("stimmung") or ""):
-            for w in stimmung_woerter(teil):   # "vinyl lofi" sind zwei Stimmungen, "live 70s" live und 70s
+            for w in stimmung_woerter(teil):   # "vinyl lofi" are two vibes, "live 70s" live and 70s
                 if w not in stimmung and len(w) > 1:
                     stimmung.append(w)
-        # Genre aus Pack- und Ordnernamen erben (Test 19.10.: eigene Drill-Kits trugen kein "drill")
+        # inherit the genre from pack and folder names (test 19.10.: your own drill kits carried no "drill")
         for w in woerter(" ".join([r.get("pack") or ""] + list(Path(os.path.dirname(pfad)).parts[-3:]))):
             if w in GENRE_WOERTER and w not in stimmung:
                 stimmung.append(w)
-        # Vocal-Einträge, deren Name ein Instrument nennt ("91V_HT_145_drum_top_loop"): Art aus dem Namen
+        # Vocal entries whose name names an instrument ("91V_HT_145_drum_top_loop"): type from the name
         if art == "vocal" and re.search(r"(?i)guitar|piano|keys|drum|perc|synth|\bbass\b|strings", name) \
                 and not re.search(r"(?i)vocal|vox|voice|chop|acapella", name):
             art = netz.einordnen(name, "", dauer)["art"] or art
-        # ganze Songs (über 90 s) sind weder Loop noch Break: Art "song", lo leer (Paket 0, 23.10.: ein ganzer Beat
-        # als MP3, 226 s, stand als Break-Loop). Acapellas, FX und Atmos behalten ihre Art.
+        # full songs (over 90 s) are neither loop nor break: type "song", lo empty (a whole beat as MP3, 226 s, was
+        # listed as a break loop). Acapellas, FX and atmos keep their type.
         if dauer is not None and dauer > SONG_AB_S:
             lo = ""
             if art not in SONG_BEHAELT_ART:
@@ -540,15 +565,15 @@ class Index:
         if pack in self.urteile:
             grund = self.urteile[pack]["grund"]
         elif herkunft == "splice" and lizenz == "unklar":
-            grund = SPLICE_GRUND
+            grund = tx(SPLICE_GRUND)
         else:
-            grund = LIZENZ_ERKLAERUNG.get(lizenz, "")
-            if r.get("hinweis"):   # selbst geladen: Lizenz der Quelle, Namensnennung, Vorschau-Hinweis
+            grund = tx(LIZENZ_ERKLAERUNG.get(lizenz, ""))
+            if r.get("hinweis"):   # downloaded yourself: license of the source, attribution, preview note
                 grund += ". " + r["hinweis"]
         warnung = r.get("warnung") or ""
         if re.search(r"(?i)\bamen\b|funky[\s_-]?drummer|\bthink\b|apache|impeach|levee|skull[\s_-]?snaps", name) \
                 and not warnung:
-            warnung = "Name deutet auf einen Plattenbreak: vorher anhören, Lizenz der Aufnahme prüfen"
+            warnung = tx("The name suggests a record break: listen first, check the license of the recording")
         z = {
             "pfad": pfad, "name": name, "pack": pack, "art": art, "lo": lo,
             "bpm": bpm, "bpm_quelle": bpm_quelle,
@@ -562,34 +587,34 @@ class Index:
             "quelle_url": r.get("quelle_url") or "", "lizenz_url": r.get("lizenz_url") or "",
             "hinweis": r.get("hinweis") or "", "warnung": warnung,
             "gruppe": r.get("doppelt_gruppe") or "", "kopien": 0, "ist_kopie": False, "md5": r.get("md5") or "",
-            # selbst geladen (zusaetze.csv): für den Reiter Downloads
+            # downloaded yourself (zusaetze.csv): for the Downloads tab
             "geladen_am": r.get("geladen_am") or "", "quelle": r.get("quelle") or "", "urheber": r.get("urheber") or "",
-            # aus gehoer und Library-Neu (laden): Quelle "gemessen", "library-neu", "gerechnet" oder "name"
+            # from gehoer and Library-Neu (laden): source "gemessen", "library-neu", "gerechnet" or "name"
             "takte": None, "takte_quelle": "", "bpm_gefuehl": None,
             "swing": None, "swing_wert": None, "swing_quelle": "", "swing_unsicher": False,
-            "gefuehl": None, "gefuehl_quelle": "", "gefuehl_unsicher": False,     # "halftime", "normal" oder None
-            # "ja", "nein", "unsicher" oder None; Quelle "library-neu" (gemessen) oder "tags" (Vibe live, nur ja)
+            "gefuehl": None, "gefuehl_quelle": "", "gefuehl_unsicher": False,     # "halftime", "normal" or None
+            # "ja", "nein", "unsicher" or None; source "library-neu" (analyzed) or "tags" (vibe live, only ja)
             "live": None, "live_info": "", "live_quelle": "",
-            # Einzelschlag: bis zur Messung die bisherige Kategorie, wenn die Datei ein One-Shot ist (Kicks nur kurze)
+            # one-shot class: until analysis the existing category, when the file is a one-shot (kicks only short ones)
             "klasse": None, "klasse_quelle": "", "klasse_unsicher": False,
-            # gehoer (Paket 2): Grundton mit Oktave ("G1") und Cent bei tonalen One-Shots, Pegel für "Pegel gleich"
+            # gehoer: root note with octave ("G1") and cents for tonal one-shots, loudness for matching levels
             "grundton": None, "grundton_cent": None, "lufs": None, "peak_dbfs": None,
-            # Paket 6: Datum der Datei (mtime aus gehoer, sonst „geaendert“ aus bestand.csv, bei Downloads das Ladedatum)
-            # für die Sortierung; hand: Felder, die von Hand korrigiert sind (Zeichen „h“)
+            # date of the file (mtime from gehoer, else "geaendert" from bestand.csv, for downloads the download date)
+            # for sorting; hand: fields corrected by hand (mark "h")
             "datum": (r.get("geaendert") or r.get("geladen_am") or "").replace("T", " ")[:16], "hand": [],
-            # Paket 7: Lizenz aus dem Entscheid für das ganze Pack (dann trägt sie auch „h“) und der Beleg dazu
+            # license from the decision for the whole pack (then it carries "h" too) and its record
             "lizenz_pack": False, "lizenz_beleg": "",
         }
-        if z["datum"] > DATUM_GRENZE:      # Paket 6: Dateidaten in der Zukunft (2177 im Bestand) zählen als unbekannt
+        if z["datum"] > DATUM_GRENZE:      # file dates in the future (2177 in the library) count as unknown
             z["datum"] = ""
         if lo == "oneshot" and art in EINZELSCHLAG and not (art == "kick" and (dauer or 0) > KICK_MAX_S):
             z["klasse"], z["klasse_quelle"] = art, "name"
-        # Name, Pack und Stimmung zählen voll; vom Pfad nur die zwei letzten Ordner (vorher fand "trap" 1.629 Snares
-        # nur wegen des Ordners "Trap & Underground" weiter oben)
-        # Paket 6: die Art zählt getrennt (woerter_setzen), damit eine Korrektur der Art auch die Suche umstellt
+        # Name, pack and vibe count in full; of the path only the last two folders (before, "trap" found 1,629 snares
+        # only because of the folder "Trap & Underground" further up)
+        # the type counts separately (woerter_setzen), so that correcting the type also changes the search
         z["_wbasis"] = " ".join(woerter(" ".join([name, pack, " ".join(stimmung), r.get("tags") or ""]
                                                  + list(Path(ordner).parts[-2:]))))
-        # Musiker-Test 03.11.2026: Felder getrennt für die Sortierung nach Treffergüte (relevanz_punkte)
+        # separate fields for sorting by match quality (relevanz_punkte)
         z["_wname"] = " " + " ".join(woerter(os.path.splitext(name)[0])) + " "
         z["_wort"] = " " + " ".join(woerter(" ".join([pack] + list(Path(ordner).parts[-2:])))) + " "
         z["_wtag"] = " " + " ".join(woerter(" ".join(stimmung) + " " + (r.get("tags") or ""))) + " "
@@ -597,8 +622,8 @@ class Index:
 
     @staticmethod
     def _doppelte_markieren(zeilen):
-        """Gleicher Klang (doppelt_gruppe aus bestand.csv, über die Audiodaten) erscheint nur einmal: bevorzugt mit
-        Lizenz ja, dann eigene Ordner, dann kürzester Pfad. Die übrigen zählen als Kopien."""
+        """The same sound (doppelt_gruppe from bestand.csv, via the audio data) shows up only once: preferably with
+        license ja, then your own folders, then the shortest path. The others count as copies."""
         gruppen = collections.defaultdict(list)
         for z in zeilen:
             if z["gruppe"]:
@@ -615,17 +640,17 @@ class Index:
                       "tonart_pc", "tonart_modus", "tonart_sicherheit", "art", "instrumente", "stil", "begriffe", "genre",
                       "kategorie", "oneshot_klasse", "oneshot_sicherheit", "grundton_pc", "grundton_midi", "grundton_cent",
                       "grundton_sicherheit", "lufs", "peak_dbfs", "name_bpm", "fehler", "analysiert_am",
-                      "mtime",      # Paket 6: Datum der Datei für die Sortierung
-                      "md5"]        # Musiker-Test 03.11.: Messung findet umgezogene Dateien
+                      "mtime",      # date of the file for sorting
+                      "md5"]        # the analysis finds files that moved
 
     @staticmethod
     def _gehoer_lesen(db):
-        """Alle Zeilen einer gehoer-Datenbank (nur lesend): [] ohne Datei, None, wenn sie nicht lesbar ist. Fehlt einer
-        älteren Datenbank eine Spalte, steht dort None."""
+        """All rows of a gehoer database (read only): [] without a file, None when it is not readable. Where an older
+        database lacks a column, None stands there."""
         if not db.is_file():
             return []
         try:
-            # keine mode=ro-Verbindung: die scheitert an einer WAL-Datenbank, wenn gerade kein Schreiber die -shm hält
+            # no mode=ro connection: it fails on a WAL database when no writer currently holds the -shm
             con = sqlite3.connect(str(db), timeout=5)
             try:
                 con.execute("PRAGMA query_only=1")
@@ -638,13 +663,13 @@ class Index:
             finally:
                 con.close()
         except sqlite3.Error as e:
-            print(f"gehoer-Datenbank {db.name} nicht lesbar: {e}", flush=True)
+            print(f"gehoer database {db.name} not readable: {e}", flush=True)
             return None
 
     @staticmethod
     def _gehoer_reihen():
-        """Zeilen der gehoer-Hauptdatenbank und der eigenen (NETZ_DB). -> ([Zeilen je lesbarer Datenbank], [Namen der
-        nicht lesbaren])"""
+        """Rows of the gehoer main database and of our own (NETZ_DB). -> ([rows per readable database], [names of the
+        unreadable ones])"""
         reihen, unlesbar = [], []
         for db in (GEHOER_DB, NETZ_DB):
             r = Index._gehoer_lesen(db)
@@ -656,12 +681,12 @@ class Index:
 
     @staticmethod
     def _gehoer_einlesen(nach_pfad, reihen_je_db):
-        """Messwerte aus der gehoer-Hauptdatenbank und der eigenen (NETZ_DB) übernehmen, nur lesend. Steht eine Datei in
-        beiden, gilt die Zeile ohne Fehler, dann die jüngere. Gemessene Werte füllen Lücken; wo der Name schon BPM oder
-        Tonart nennt, bleibt der Name maßgeblich (die Hersteller wissen es genauer als jede Messung)."""
+        """Take over analysis values from the gehoer main database and our own (NETZ_DB), read only. If a file is in
+        both, the row without an error wins, then the newer one. Analyzed values fill gaps; where the name already gives
+        BPM or key, the name stays authoritative (the makers know it better than any analysis)."""
         beste = {}
-        # Messung ohne Datei am alten Ort (FL Studio 2025 -> 2026, Ordner verschoben): über die md5 zu den Zeilen, die
-        # keine eigene Messung haben (Musiker-Test 03.11.2026: 3.371 Werkspack-Messungen hingen sonst am alten Pfad)
+        # Analysis without a file at the old place (FL Studio 2025 -> 2026, folder moved): via the md5 to the rows that
+        # have no analysis of their own (otherwise 3,371 analyses of factory packs hung on the old path)
         ohne_ort = collections.defaultdict(list)
         md5_zeilen = collections.defaultdict(list)
         for z in nach_pfad.values():
@@ -679,7 +704,7 @@ class Index:
         umgezogen = [(p, g) for m, gs in ohne_ort.items() for p in md5_zeilen[m] if p not in gemessen_pfade for g in gs]
         for reihen in list(reihen_je_db) + [[None]]:
             for g in reihen:
-                if g is None:      # nach allen Datenbanken: die umgezogenen Messungen, nur wo nichts Eigenes steht
+                if g is None:      # after all databases: the moved analyses, only where nothing of our own is
                     for p, g2 in umgezogen:
                         if p not in beste:
                             beste[p] = g2
@@ -698,9 +723,9 @@ class Index:
             z = nach_pfad[p]
             n += 1
             z["gemessen"] = True
-            if g["mtime"] and 0 < g["mtime"] < time.time() + 86400:    # Paket 6: Datum laut gehoer (Zukunft bleibt weg)
+            if g["mtime"] and 0 < g["mtime"] < time.time() + 86400:    # date according to gehoer (the future stays out)
                 z["datum"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(g["mtime"]))
-            vorwissen = z["bpm"] is not None or g["name_bpm"] is not None   # Tempo aus Name oder Projekt
+            vorwissen = z["bpm"] is not None or g["name_bpm"] is not None   # tempo from the name or the project
             if z["bpm"] is None and g["bpm"]:
                 z["bpm"] = round(g["bpm"], 1)
                 z["bpm_quelle"] = "gemessen" + (" (unsicher)" if (g["bpm_sicherheit"] or 0) < UNSICHER else "")
@@ -715,30 +740,30 @@ class Index:
                 z["begriffe"] = z["begriffe"] + Index._liste(g["genre"])
             Index._groove_uebernehmen(z, g, vorwissen)
             Index._grundton_uebernehmen(z, g)
-            # Pegel für "Pegel gleich" (Paket 2); unplausible Werte zählen als fehlend
+            # loudness for matching levels; implausible values count as missing
             z["lufs"], z["peak_dbfs"] = pegel_wert(g["lufs"], -70, 6), pegel_wert(g["peak_dbfs"], -90, 30)
         return n
 
     @staticmethod
     def _grundton_uebernehmen(z, g):
-        """Grundton gehoers für 808, Bass und tonale One-Shots (nach der Klasse, die erst _groove_uebernehmen setzt).
-        Bei One-Shots geht der Grundton vor einer gemessenen Tonart (eine Kick in "Fm" sagt nichts); ein Ton aus dem
-        Namen bleibt, bekommt die Oktave aber nur, wenn gehoer denselben Ton hört."""
+        """gehoer's root note for 808, bass and tonal one-shots (by the class that only _groove_uebernehmen sets).
+        For one-shots the root note comes before an analyzed key (a kick in "Fm" says nothing); a note from the
+        name stays, but gets the octave only when gehoer hears the same note."""
         if g["grundton_pc"] is None or not grundton_zeile(z):
             return
         pc = int(g["grundton_pc"]) % 12
         if z["ton"] is None or (z["ton_quelle"] == "gemessen" and z["lo"] == "oneshot"):
             z["ton"], z["modus"], z["ton_quelle"] = TONARTEN[pc], "", "gemessen"
             z["ton_unsicher"] = (g["grundton_sicherheit"] or 0) < UNSICHER
-        if z["ton"] == TONARTEN[pc] and g["grundton_midi"] is not None and z["lo"] == "oneshot":   # Loops ohne Oktave
+        if z["ton"] == TONARTEN[pc] and g["grundton_midi"] is not None and z["lo"] == "oneshot":   # loops without octave
             midi = int(g["grundton_midi"])
             z["grundton"] = TONARTEN[midi % 12] + str(midi // 12 - 1)
             z["grundton_cent"] = int(g["grundton_cent"]) if g["grundton_cent"] is not None else None
 
     @staticmethod
     def _leicht_einlesen(zeilen):
-        """Tempo (Loops ohne Tempo) und Grundton (808, Bass, tonale One-Shots ohne Ton) aus der leichten Messung, nur wo
-        gehoer nicht gemessen hat. Tonarten von Loops nicht: zu unsicher (siehe leicht.py)."""
+        """Tempo (loops without tempo) and root note (808, bass, tonal one-shots without a note) from the light
+        analysis, only where gehoer did not analyze. Not the keys of loops: too unreliable (see leicht.py)."""
         if LEICHT is None:
             return
         werte = LEICHT.werte()
@@ -752,8 +777,8 @@ class Index:
                 continue
             if z["bpm"] is None and z["lo"] == "loop" and w["bpm"] and (w["bpm_sicher"] or 0) >= leicht.TEMPO_AB:
                 z["bpm"], z["bpm_quelle"] = round(w["bpm"], 2), "leicht"
-            # Grundton nur für 808, Bass und melodische One-Shots: bei Kicks und Snares war er unzuverlässig, und mit Ton
-            # filtert der Projektrahmen sie nach Tonart (Nutzertest 2: Kick fiel von 520 auf 246)
+            # root note only for 808, bass and melodic one-shots: for kicks and snares it was unreliable, and with a
+            # note the project frame filters them by key (kicks dropped from 520 to 246)
             tonal = z["art"] in ("808", "bass", "melodisch") or z.get("klasse") in ("808", "bass", "melodisch")
             if z["ton"] is None and z["lo"] == "oneshot" and tonal and w["grundton_midi"] is not None \
                     and (w["tonhaltig"] or 0) >= leicht.TONHALTIG_AB:
@@ -763,8 +788,8 @@ class Index:
 
     @staticmethod
     def _begriffe_zur_klasse(z):
-        """gehoer-Begriffe ohne Schläge, die der Einzelschlag-Klasse widersprechen (nur One-Shots mit Klasse).
-        Vorher fanden 513 Dateien "kick" nur über diesen Begriff, darunter 35 gemessene Percs und 17 Toms."""
+        """gehoer terms without hits that contradict the one-shot class (only one-shots with a class).
+        Before, 513 files found "kick" only through this term, among them 35 analyzed percs and 17 toms."""
         k = z["klasse"]
         if not k or z["lo"] != "oneshot" or not z["begriffe"]:
             return z["begriffe"]
@@ -773,14 +798,14 @@ class Index:
 
     @staticmethod
     def _groove_uebernehmen(z, g, vorwissen):
-        """Takte, Swing, Halftime und Einzelschlag-Klasse aus einer gehoer-Zeile.
-        Swing und Halftime hängen an der Länge des Schlags (STIMMUNG-REGELN.md, Bezugstempo): sie zählen nur, wenn
-        gehoers Tempo auf 2 % zum Tempo der Zeile passt (Name zuerst). Halftime heißt: bpm_gefuehl ist das halbe Tempo
-        und die Taktart nicht 6/8 (dort steht die punktierte Viertel). Ohne Tempo im Namen kann dasselbe halbe Tempo
-        auch gehoers Zweifel an der Oktave sein (rhythmus: rechnung:oktave, dann Tempo-Sicherheit höchstens 0,6): dann "?".
-        Halftime nur bei Drum-Loops (GEFUEHL_ARTEN), die Einzelschlag-Klasse nur bei One-Shots."""
-        # Bestand sagt Loop, die Datei ist aber kürzer als ein Takt und gehoer misst einen One-Shot: das Tempo kam aus
-        # dem Kit (Splice), wie beim ACID-Block oben (Prüfung 20.10.: eine Kick mit „174“ im Namen, 0,48 s, „kickloop“)
+        """Bars, swing, halftime and one-shot class from a gehoer row.
+        Swing and halftime depend on the length of the beat (reference tempo): they only count when gehoer's tempo
+        matches the row's tempo within 2 % (the name first). Halftime means: bpm_gefuehl is half the tempo and the
+        time signature is not 6/8 (there it is the dotted quarter). Without a tempo in the name, the same half tempo
+        can also be gehoer's doubt about the octave (rhythmus: rechnung:oktave, then tempo confidence at most 0.6): then "?".
+        Halftime only for drum loops (GEFUEHL_ARTEN), the one-shot class only for one-shots."""
+        # The library says loop, but the file is shorter than a bar and gehoer analyzes a one-shot: the tempo came from
+        # the kit (Splice), like the ACID chunk above (check 20.10.: a kick with "174" in the name, 0.48 s, "kickloop")
         if (z["lo"] == "loop" and g["art"] == "oneshot" and z["bpm"] and z["dauer"] is not None
                 and z["dauer"] < 0.95 * 240.0 / z["bpm"]):
             z["lo"] = "oneshot"
@@ -788,13 +813,13 @@ class Index:
             z["takte"], z["takte_quelle"] = round(g["takte"], 2), "gemessen"
         gb, bezug = g["bpm"], z["bpm"]
         passt = bool(gb and bezug and abs(gb / bezug - 1) <= BEZUG_TOLERANZ)
-        # Swing, Gefühl und gefühltes Tempo nur bei Loops (gehoer findet auch in manchen One-Shots einen Puls)
+        # swing, feel and felt tempo only for loops (gehoer finds a pulse in some one-shots too)
         loopartig = z["lo"] == "loop" or (z["lo"] != "oneshot" and g["art"] in ("loop", "ausschnitt"))
         drums = z["art"] in GEFUEHL_ARTEN
         gf = g["bpm_gefuehl"]
         halb = bool(passt and gf) and abs(2 * gf / gb - 1) <= BEZUG_TOLERANZ
-        doppelt = bool(passt and gf) and abs(gf / (2 * gb) - 1) <= BEZUG_TOLERANZ    # nur gehoers Oktav-Zweifel
-        # gefühltes Tempo zählt bei "halb/doppelt" mit: punktierte Viertel bei 6/8 immer, Halftime nur bei Drum-Loops
+        doppelt = bool(passt and gf) and abs(gf / (2 * gb) - 1) <= BEZUG_TOLERANZ    # only gehoer's doubt about the octave
+        # the felt tempo counts with "half/double": the dotted quarter in 6/8 always, halftime only for drum loops
         if passt and loopartig and gf and not doppelt and (not halb or (drums and g["taktart"] != "6/8")):
             z["bpm_gefuehl"] = round(gf, 2)
         if passt and loopartig and g["swing"] is not None:
@@ -803,7 +828,7 @@ class Index:
         if passt and loopartig and drums and g["taktart"] != "6/8":
             z["gefuehl"], z["gefuehl_quelle"] = ("halftime" if halb else "normal"), "gemessen"
             z["gefuehl_unsicher"] = halb and not vorwissen and (g["bpm_sicherheit"] or 0) <= 0.6
-        # Einzelschlag nur bei One-Shots (Prüfung 20.10.: zwei Loops standen sonst im Filter Einzelschlag)
+        # one-shot class only for one-shots (check 20.10.: two loops otherwise showed up in the one-shot filter)
         klasse = (g["oneshot_klasse"] or "").lower()
         klasse = KLASSE_AUS_GEHOER.get(klasse, klasse)
         if klasse in EINZELSCHLAG and (z["lo"] == "oneshot" or (not z["lo"] and g["art"] == "oneshot")):
@@ -812,16 +837,16 @@ class Index:
 
     @staticmethod
     def _library_neu_einlesen(zeilen):
-        """swing, gefuehl, live der Library-Neu (über md5). Dort gemessen heißt: stimmung_quelle nennt das Bezugstempo
-        ("gemessen bei 142 BPM"); dann gilt der Wert der Library-Neu auch vor der gehoer-Datenbank, ein leerer swing
-        heißt "nicht messbar" (nie gerade), ein leeres gefuehl "kein Halftime". live gibt es nur dort."""
+        """swing, gefuehl, live of the Library-Neu (via md5). Analyzed there means: stimmung_quelle names the reference
+        tempo ("gemessen bei 142 BPM"); then the Library-Neu value wins even over the gehoer database, an empty swing
+        means "not measurable" (never straight), an empty gefuehl "no halftime". live only exists there."""
         if not LIBRARY_NEU.is_file():
             return 0
         try:
             with open(LIBRARY_NEU, newline="", encoding="utf-8") as f:
                 werte = {r["md5"]: r for r in csv.DictReader(f) if r.get("md5") and r.get("stimmung_quelle")}
         except (OSError, csv.Error, KeyError, UnicodeDecodeError) as e:
-            print(f"Library-Neu nicht lesbar: {e}", flush=True)
+            print(f"Library-Neu not readable: {e}", flush=True)
             return 0
         n = 0
         for z in zeilen:
@@ -848,18 +873,18 @@ class Index:
 
     @staticmethod
     def _live_aus_tags(zeilen):
-        """Ohne Messung zählt der Vibe "live" (Splice-Tags, Packbeschreibung, Ordner- und Dateiname) als live gespielt,
-        bei Loops. Vorher gab es zweimal "live": den Vibe (606 Samples) und den Filter Live gespielt (nur Library-Neu);
-        "boom bap"-Breaks zeigten live, der Filter fand 0 (Test 20.10.). Eine Messung geht immer vor."""
+        """Without an analysis, the vibe "live" (Splice tags, pack description, folder and file name) counts as played
+        live, for loops. Before, there were two "live": the vibe (606 samples) and the filter played live (Library-Neu
+        only); "boom bap" breaks showed live, the filter found 0 (test 20.10.). An analysis always comes first."""
         for z in zeilen:
             if z["live"] is None and z["lo"] != "oneshot" and "live" in z["stimmung"]:
                 z["live"], z["live_quelle"] = "ja", "tags"
-                z["live_info"] = "laut Tags oder Packbeschreibung (Vibe live), nicht gemessen"
+                z["live_info"] = tx("according to tags or pack description (vibe live), not analyzed")
 
     @staticmethod
     def _takte_rechnen(zeilen):
-        """Loops ohne gemessene Takte: aus Länge und Tempo (4/4), wenn das auf 2 % eine übliche Loop-Länge ergibt (1, 2,
-        3, 4, 6, 8, 12, 16, 24, 32 Takte). Steht ohne "g" da; gehoer ersetzt den Wert, sobald gemessen."""
+        """Loops without analyzed bars: from length and tempo (4/4), when that gives a usual loop length within 2 % (1, 2,
+        3, 4, 6, 8, 12, 16, 24, 32 bars). Shown without "g"; gehoer replaces the value once analyzed."""
         for z in zeilen:
             if z["takte"] is not None or z["lo"] != "loop" or not z["bpm"] or not z["dauer"]:
                 continue
@@ -870,7 +895,7 @@ class Index:
 
     @staticmethod
     def _abdeckung(zeilen):
-        """Wie viele Samples (ohne ausgeblendete Kopien) einen Wert haben: für den Leerzustand der Filter."""
+        """How many samples (without hidden copies) have a value: for the empty state of the filters."""
         sichtbar = [z for z in zeilen if not z["ist_kopie"]]
         return {
             "alle": len(sichtbar),
@@ -902,7 +927,7 @@ class Index:
                 x = x[0]
             if isinstance(x, dict):
                 x = x.get("name") or x.get("label") or ""
-            x = re.sub(r"\s+\d(\.\d+)?$", "", str(x).strip())   # gehoer schreibt "label 0.83, label 0.41"
+            x = re.sub(r"\s+\d(\.\d+)?$", "", str(x).strip())   # gehoer writes "label 0.83, label 0.41"
             if x:
                 aus.append(x)
         return aus[:8]
@@ -912,30 +937,30 @@ INDEX = None
 
 
 def woerter_setzen(z):
-    """Suchwörter einer Zeile: Name, Pack, Vibe, Tags, zwei Ordner (_wbasis), die Art und gehoers Instrumente, Stil,
-    Begriffe. Die Art steht getrennt, damit eine Korrektur von Hand (Paket 6) sie ohne Neuladen tauscht."""
+    """Search words of a row: name, pack, vibe, tags, two folders (_wbasis), the type and gehoer's instruments, style,
+    terms. The type stands apart so that a correction by hand swaps it without reloading."""
     z["woerter"] = " " + " ".join([z["_wbasis"]] + woerter(z["art"])
                                   + woerter(" ".join(z["instrumente"] + z["stil"] + z["begriffe"]))).strip() + " "
-    z["_wart"] = " " + " ".join(woerter(z["art"] + " " + (z["klasse"] or ""))) + " "    # Treffergüte (relevanz_punkte)
+    z["_wart"] = " " + " ".join(woerter(z["art"] + " " + (z["klasse"] or ""))) + " "    # match quality (relevanz_punkte)
 
 
-# Paket 6: Felder, die eine Korrektur berühren kann; der Stand vor der ersten Korrektur liegt in z["_vorher"], damit
-# ein Aufheben den alten Wert ohne Neuladen zurückbringt
+# Fields a correction can touch; the state before the first correction lives in z["_vorher"], so that undoing it
+# brings back the old value without reloading
 KORR_STAND = ("art", "lo", "bpm", "bpm_quelle", "ton", "modus", "ton_quelle", "ton_unsicher", "grundton",
               "grundton_cent", "lizenz", "lizenz_grund", "klasse", "klasse_quelle", "klasse_unsicher", "takte",
               "takte_quelle", "begriffe", "lizenz_pack", "lizenz_beleg")
-HAND = "hand"                 # Quelle von Hand gesetzter Werte, die Oberfläche zeigt „h“
-MESSEN_MAX = 5000             # Messen für viele auf einmal (gehoer braucht je Datei Sekunden)
-KOERPER_MAX = 16 << 20        # größter POST-Körper (Pfadliste aller markierten bei Cmd+A)
-DATUM_GRENZE = time.strftime("%Y-%m-%d %H:%M", time.localtime(time.time() + 86400))   # später: Unsinn
+HAND = "hand"                 # source of values set by hand, the interface shows "h"
+MESSEN_MAX = 5000             # analyzing many at once (gehoer needs seconds per file)
+KOERPER_MAX = 16 << 20        # largest POST body (path list of everything selected with Cmd+A)
+DATUM_GRENZE = time.strftime("%Y-%m-%d %H:%M", time.localtime(time.time() + 86400))   # later: nonsense
 
 
 def korrektur_anwenden(z, felder, pack_ent=None):
-    """Korrektur (felder aus korrekturen.py, {} = keine) auf eine Indexzeile legen. Erst den Stand ohne Korrektur
-    zurückholen, dann die Felder setzen; Einzelschlag-Klasse, gerechnete Takte, Begriffe und Suchwörter folgen.
-    Paket 7: darunter liegt der Entscheid für das Pack (Lizenz, Grund, Beleg); eine eigene Lizenz der Zeile geht vor.
-    pack_ent: korrekturen.packs() beim Laden (sonst liest pack_felder selbst)."""
-    z["_korr"] = dict(felder)          # Einzelkorrektur merken: ein neuer Pack-Entscheid legt sie wieder obenauf
+    """Lay a correction (felder from korrekturen.py, {} = none) onto an index row. First bring back the state without a
+    correction, then set the fields; one-shot class, computed bars, terms and search words follow.
+    Underneath lies the decision for the pack (license, reason, record); a license of the row itself comes first.
+    pack_ent: korrekturen.packs() when loading (otherwise pack_felder reads it itself)."""
+    z["_korr"] = dict(felder)          # remember the single correction: a new pack decision puts it back on top
     pf = korrekturen.pack_felder(z["pack"], pack_ent) if pack_entscheidbar(z) else {}
     if "_vorher" in z:
         z.update(z["_vorher"])
@@ -945,8 +970,8 @@ def korrektur_anwenden(z, felder, pack_ent=None):
     z["hand"] = []
     if pf.get("lizenz") and "lizenz" not in felder:
         z["lizenz"], z["lizenz_pack"], z["lizenz_beleg"] = pf["lizenz"], True, pf.get("beleg") or ""
-        z["lizenz_grund"] = "Für das ganze Pack entschieden" + (": " + pf["lizenz_grund"] if pf.get("lizenz_grund") else "") \
-            + ("; Beleg: " + pf["beleg"] if pf.get("beleg") else "")
+        z["lizenz_grund"] = tx("Decided for the whole pack") + (": " + pf["lizenz_grund"] if pf.get("lizenz_grund") else "") \
+            + ("; " + tx("record: {beleg}", beleg=pf["beleg"]) if pf.get("beleg") else "")
         z["hand"] = ["lizenz"]
     if felder:
         if "art" in felder:
@@ -957,20 +982,20 @@ def korrektur_anwenden(z, felder, pack_ent=None):
             z["bpm"], z["bpm_quelle"] = felder["bpm"], HAND
         if "tonart" in felder:
             n = tonart_norm(felder["tonart"]) if felder["tonart"] else None
-            if not n or n[0] != z["ton"]:          # Grundton mit Oktave nur, solange der Ton derselbe bleibt
+            if not n or n[0] != z["ton"]:          # root note with octave only as long as the note stays the same
                 z["grundton"], z["grundton_cent"] = None, None
             z["ton"], z["modus"] = (n[0], n[1]) if n else (None, None)
             z["ton_quelle"], z["ton_unsicher"] = HAND, False
         if "lizenz" in felder:
             z["lizenz"] = felder["lizenz"]
             g = felder.get("lizenz_grund") or ""
-            z["lizenz_grund"] = "Von Hand gesetzt" + (": " + g if g else "")
-        if "art" in felder or "lo" in felder:     # Einzelschlag folgt der Art bei One-Shots, sonst keiner
+            z["lizenz_grund"] = tx("Set by hand") + (": " + g if g else "")
+        if "art" in felder or "lo" in felder:     # the one-shot class follows the type for one-shots, otherwise none
             a = z["art"]
             ok = z["lo"] == "oneshot" and a in EINZELSCHLAG
             z["klasse"], z["klasse_quelle"], z["klasse_unsicher"] = (a, HAND, False) if ok else (None, "", False)
         z["hand"] = [f for f in ("art", "lo", "bpm", "tonart", "lizenz") if f in felder or (f in z["hand"])]
-    # gerechnete Takte hängen an Tempo und Loop, gemessene gelten nicht für One-Shots
+    # computed bars depend on tempo and loop, analyzed ones do not apply to one-shots
     if z["takte_quelle"] != "gemessen" or z["lo"] == "oneshot":
         z["takte"], z["takte_quelle"] = None, ""
         Index._takte_rechnen([z])
@@ -979,7 +1004,7 @@ def korrektur_anwenden(z, felder, pack_ent=None):
 
 
 def korrektur_im_index(geaendert):
-    """Nach POST /api/korrektur: betroffene Zeilen im Speicher ersetzen statt neu zu laden. geaendert: {pfad: felder}"""
+    """After POST /api/korrektur: replace the affected rows in memory instead of reloading. geaendert: {pfad: felder}"""
     for p, felder in geaendert.items():
         z = INDEX.nach_pfad.get(p)
         if z is not None:
@@ -990,21 +1015,21 @@ def korrektur_im_index(geaendert):
     SUCH_CACHE.clear()
 
 
-# ---------------------------------------------------------------- Paket 7: Lizenz pro Pack
-LIZENZ_OFFEN = ("unklar", "ungeprüft")     # noch nicht entschieden („unbekannt“ kommt im Bestand nicht vor)
-HERKUNFT_NAME = {"splice": "Splice", "netz": "Netz", "openlibary": "Netz", "ordner": "Ordner"}
+# ---------------------------------------------------------------- license per pack
+LIZENZ_OFFEN = ("unklar", "ungeprüft")     # not decided yet ("unbekannt" does not occur in the library)
+HERKUNFT_NAME = {"splice": "Splice", "netz": N_("Web"), "openlibary": N_("Web"), "ordner": N_("Folder")}
 EINZEL_TEIL = os.sep + netz.EINZEL_ORDNER + os.sep
 
 
 def pack_entscheidbar(z):
-    """Gilt ein Pack-Entscheid für diese Zeile? Nicht für Einzelsounds aus dem Netz: ihr „Pack“ ist der Ordner nach Art
-    oder Kit (netz.py: pack = Ordnername, etwa „Vocals“), jede Datei hat ihre eigene Lizenz. Ein Entscheid dort hätte
-    jeden künftigen Download in diesen Ordner still mitgenommen (Prüfung 24.10.: CC BY-NC stand danach auf ja)."""
+    """Does a pack decision apply to this row? Not for single sounds from the Web: their "pack" is the folder by type
+    or kit (netz.py: pack = folder name, e.g. "Vocals"), every file has its own license. A decision there would have
+    silently taken along every future download into that folder (check 24.10.: CC BY-NC was then on ja)."""
     return bool(z["pack"]) and EINZEL_TEIL not in z["pfad"]
 
 
 def pack_im_index(pack):
-    """Nach einem Pack-Entscheid: alle Zeilen des Packs neu belegen (ihre Einzelkorrektur bleibt obenauf)."""
+    """After a pack decision: re-apply all rows of the pack (their single correction stays on top)."""
     n = 0
     for z in INDEX.zeilen:
         if z["pack"] == pack:
@@ -1015,18 +1040,18 @@ def pack_im_index(pack):
 
 
 def lizenz_basis(z):
-    """Lizenz und Grund der Zeile ohne Pack-Entscheid und ohne Korrektur von Hand."""
+    """License and reason of the row without a pack decision and without a correction by hand."""
     v = z.get("_vorher") or z
     return v["lizenz"], v["lizenz_grund"]
 
 
 def lizenz_offen_zahl():
-    """Zähler links „Lizenz offen“: wie die Bibliothek ohne Filter (ohne Kopien und verworfene) gezählt."""
+    """Counter "License unclear" on the left: counted like the library without filters (without copies and discarded)."""
     return sum(1 for z in filtern({}) if z["lizenz"] in LIZENZ_OFFEN)
 
 
 def lizenz_packs():
-    """Lizenzansicht: eine Zeile je Pack mit offenen oder entschiedenen Dateien."""
+    """License view: one row per pack with open or decided files."""
     ent, heute = korrekturen.packs(), korrekturen.heute()
     g = {}
     ohne_pack = einzeln = offen = 0
@@ -1036,7 +1061,7 @@ def lizenz_packs():
         if not z["pack"]:
             ohne_pack += jetzt_offen
             continue
-        if not pack_entscheidbar(z):      # Einzelsounds: Lizenz je Datei, kein Pack
+        if not pack_entscheidbar(z):      # single sounds: license per file, no pack
             einzeln += jetzt_offen
             continue
         b, grund = lizenz_basis(z)
@@ -1058,7 +1083,7 @@ def lizenz_packs():
             continue
         spaeter = x["spaeter_bis"] if not lizenz and x["spaeter_bis"] >= heute else ""
         aus.append({"pack": pack, "offen": e["offen"], "vorher_offen": e["vorher_offen"], "dateien": e["dateien"],
-                    "herkunft": [h for h, _ in e["herkunft"].most_common()],
+                    "herkunft": [tx(h) for h, _ in e["herkunft"].most_common()],
                     "splice": "Splice" in e["herkunft"],
                     "grund": e["gruende"].most_common(1)[0][0] if e["gruende"] else "",
                     "lizenz": lizenz, "beleg": x["felder"].get("beleg", ""),
@@ -1073,19 +1098,19 @@ def lizenz_packs():
 
 
 def lizenz_playlist(sammlung):
-    """Zeile über einer Playlist: „12 ja · 5 offen · 3 nein“ über die ganze Playlist (ohne die übrigen Filter)."""
+    """Line above a playlist: "12 ja · 5 offen · 3 nein" over the whole playlist (without the other filters)."""
     c = collections.Counter(z["lizenz"] for z in filtern({"sammlung": [sammlung]}))
     return {"ja": c["ja"], "offen": sum(c[x] for x in LIZENZ_OFFEN), "nein": c["nein"]}
 
 
 def suche_aufloesen(s):
-    """Paket 6: {Parameter der Suche} statt einer Pfadliste (Cmd+A über alle Treffer) -> Pfade in Sortierung."""
+    """{parameters of the search} instead of a path list (Cmd+A over all matches) -> paths in sort order."""
     if not isinstance(s, dict):
-        raise Fehleingabe("suche muss ein Objekt sein")
+        raise Fehleingabe(tx("suche must be an object"))
     p = {}
     for k, v in s.items():
         if isinstance(v, bool) or not isinstance(v, (str, int, float)):
-            raise Fehleingabe(f"suche.{k} muss Text oder Zahl sein")
+            raise Fehleingabe(tx("suche.{k} must be text or a number", k=k))
         p[k] = [str(v)]
     fremd = unbekannte_parameter(p, SUCHE_PARAMETER - {"offset", "limit"})
     if fremd:
@@ -1094,83 +1119,84 @@ def suche_aufloesen(s):
 
 
 def auswahl_pfade(k, grenze=korrekturen.MAX_PFADE):
-    """pfade (Liste) oder suche (Objekt) aus einem POST-Körper -> Pfade aus dem Index (nur bekannte)."""
+    """pfade (list) or suche (object) from a POST body -> paths from the index (known ones only)."""
     if k.get("suche") is not None:
         pfade = suche_aufloesen(k["suche"])
     else:
         roh = k.get("pfade")
         if not isinstance(roh, list) or not roh or not all(isinstance(x, str) for x in roh):
-            raise Fehleingabe("pfade muss eine Liste von Texten sein (oder suche ein Objekt)")
+            raise Fehleingabe(tx("pfade must be a list of strings (or suche an object)"))
         pfade = list(dict.fromkeys(nfc(x) for x in roh))
         if any(x not in INDEX.nach_pfad for x in pfade):
-            raise Fehleingabe("Sample steht nicht in der Bibliothek")
+            raise Fehleingabe(tx("Sample is not in the library"))
     if len(pfade) > grenze:
-        raise Fehleingabe(f"höchstens {grenze:,} Samples auf einmal".replace(",", "."))
+        raise Fehleingabe(tx("at most {n} samples at once",
+                             n=f"{grenze:,}".replace(",", "." if i18n.current() == "de" else ",")))
     return pfade
 
 
-# ================================================================ Suche
+# ================================================================ Search
 
 class Fehleingabe(ValueError):
     pass
 
 
-# Erlaubte Parameter, einmal hier (Paket 0, 23.10.2026): ein Tippfehler wie "ton" statt "tonart" filterte vorher still
-# nichts weg. Wer einen neuen Filter einbaut, trägt ihn hier ein; sonst antwortet der Server mit 400.
+# Allowed parameters, kept in one place (23.10.2026): a typo like "ton" instead of "tonart" used to filter out nothing
+# without a word. Whoever builds in a new filter adds it here; otherwise the server answers with 400.
 SUCHE_PARAMETER = frozenset([
     "q", "sammlung", "art", "herkunft", "lizenz", "stimmung", "tonart", "passend", "lo", "pack",
     "art_nicht", "herkunft_nicht", "lizenz_nicht", "stimmung_nicht",
     "swing", "gefuehl", "live", "klasse", "takte", "takte_min", "takte_max",
     "swing_nicht", "gefuehl_nicht", "live_nicht", "klasse_nicht", "takte_nicht",
     "bpm_min", "bpm_max", "halb", "dauer_min", "dauer_max", "gemessen", "doppelte", "sort", "ab", "offset", "limit",
-    "bpm_toleranz", "ton_abstand", "drums_ohne_ton",      # Paket 1 (Projektrahmen)
-    "oneshots_ohne_tempo",                                # Musiker-Test 03.11.: Rahmentempo filtert keine One-Shots
-    "notiz",                                              # Paket 10: nur Samples mit Notiz
-    "verworfene", "nie_gehoert",                          # Paket 4: verworfene mitzeigen, nur nie gehörte
-    "aehnlich", "aehnlich_bpm",                           # Paket 5: Ähnliche zu einem Sample (Tempo vom Projekt)
-    "genre", "genre_nicht",                               # linke Spalte 24.10.: sieben Genres, je ODER über Vibe-Wörter
+    "bpm_toleranz", "ton_abstand", "drums_ohne_ton",      # project frame
+    "oneshots_ohne_tempo",                                # the frame tempo does not filter one-shots
+    "notiz",                                              # only samples with a note
+    "verworfene", "nie_gehoert",                          # also show discarded ones, only never played ones
+    "aehnlich", "aehnlich_bpm",                           # similar to a sample (tempo from the project)
+    "genre", "genre_nicht",                               # left column: seven genres, each an OR over vibe words
 ])
 ZUFALL_PARAMETER = frozenset(["typ", "bpm_min", "bpm_max", "halb", "lizenz", "ohne",
                               "bpm_toleranz", "tonart", "passend", "ton_abstand", "verworfene",
-                              "nie_zuerst"])                # Paket 5: noch nie Gehörtes zuerst
-# Paket 5: typ=suche zieht aus der Bibliothekssuche und nimmt dafür alle Parameter der Suche (ohne Blättern)
+                              "nie_zuerst"])                # never played ones first
+# typ=suche draws from the library search and takes all search parameters for that (without paging)
 ZUFALL_SUCHE_PARAMETER = (SUCHE_PARAMETER - {"offset", "limit"}) | {"typ", "ohne", "nie_zuerst"}
-VERLAUF_SAMMLUNGEN = ("gehoert", "gezogen")               # Paket 4: sammlung=gehoert, sammlung=gezogen
-# Paket 1: Drum-Arten ohne Ton fallen beim Tonartfilter des Projektrahmens nicht heraus (eine Snare hat keine Tonart);
-# in der Bibliothek nur mit drums_ohne_ton=1 (setzt der Rahmen), im Zufall immer. Mit Ton (gemessener Grundton) zählt er.
+VERLAUF_SAMMLUNGEN = ("gehoert", "gezogen")               # sammlung=gehoert, sammlung=gezogen
+# Drum types without a note do not drop out with the key filter of the project frame (a snare has no key); in the
+# library only with drums_ohne_ton=1 (set by the frame), in Random always. With a note (analyzed root note) it counts.
 DRUM_ARTEN = {"kick", "snare", "clap", "hat", "cymbal", "perc", "tom", "rim", "brush",
               "break", "kickloop", "fill", "top"}
 BPM_TOLERANZ_MAX, TON_ABSTAND_MAX = 15, 6
 
 
 def tempo_bereich(p, eins):
-    """bpm_min, bpm_max (vertauscht getauscht), um bpm_toleranz Prozent geweitet: 140 bis 140 mit 8 -> 129 bis 151."""
+    """bpm_min, bpm_max (swapped when reversed), widened by bpm_toleranz percent: 140 to 140 with 8 -> 129 to 151."""
     bmin, bmax = zahl(eins("bpm_min")), zahl(eins("bpm_max"))
     if bmin is not None and bmax is not None and bmin > bmax:
         bmin, bmax = bmax, bmin
     t = zahl(eins("bpm_toleranz"))
     if eins("bpm_toleranz") != "" and (t is None or not 0 <= t <= BPM_TOLERANZ_MAX):
-        raise Fehleingabe(f"bpm_toleranz: 0 bis {BPM_TOLERANZ_MAX} (Prozent)")
-    if t:   # auf ganze BPM nach innen, dazu kommt das halbe BPM Spiel aus tempo_passend: 140 ±8 % zeigt 129 bis 151
+        raise Fehleingabe(tx("bpm_toleranz: 0 to {max} (percent)", max=BPM_TOLERANZ_MAX))
+    if t:   # to whole BPM inward, plus the half BPM of play from tempo_passend: 140 ±8 % shows 129 to 151
         bmin = math.ceil(bmin * (1 - t / 100) - 1e-9) if bmin is not None else None
         bmax = math.floor(bmax * (1 + t / 100) + 1e-9) if bmax is not None else None
     return bmin, bmax
 
 
 def tonart_mengen(werte, passend, abstand_text):
-    """-> (Tonarten wie 'F#m', Grundtöne für 808, Bass und tonale One-Shots). passend: Camelot-Nachbarn dazu;
-    ton_abstand n: dieselbe Tonart bis n Halbtöne höher oder tiefer, je mit ihrer Parallele (Ab ist zu Fm Abstand 0)."""
+    """-> (keys like 'F#m', root notes for 808, bass and tonal one-shots). passend: add the Camelot neighbors;
+    ton_abstand n: the same key up to n semitones higher or lower, each with its relative key (Ab is distance 0 to Fm)."""
     try:
         abstand = int(abstand_text) if abstand_text != "" else 0
     except ValueError:
         abstand = -1
     if not 0 <= abstand <= TON_ABSTAND_MAX:
-        raise Fehleingabe(f"ton_abstand: ganze Zahl 0 bis {TON_ABSTAND_MAX}")
+        raise Fehleingabe(tx("ton_abstand: whole number from 0 to {max}", max=TON_ABSTAND_MAX))
     tonarten, grund = set(), set()
     for t in werte:
         n = tonart_norm(t)
         if not n:
-            raise Fehleingabe(f"Tonart {t} unbekannt")
+            raise Fehleingabe(tx("unknown key: {t}", t=t))
         basis = camelot_nachbarn(*n) if passend else {n[0] + n[1]}
         tonarten |= basis
         grund |= {x.rstrip("m") for x in basis}
@@ -1192,29 +1218,29 @@ def tonart_passt(z, tonarten, grundtoene, drums_frei):
 
 
 def unbekannte_parameter(p, erlaubt):
-    """-> Antwort für 400 oder None. p: parse_qs-Ergebnis."""
+    """-> answer for 400 or None. p: result of parse_qs."""
     fremd = sorted(k for k in p if k not in erlaubt)
     if not fremd:
         return None
-    return {"fehler": "unbekannter Parameter: " + ", ".join(fremd), "erlaubt": sorted(erlaubt)}
+    return {"fehler": tx("unknown parameter: {names}", names=", ".join(fremd)), "erlaubt": sorted(erlaubt)}
 
 
-SUCH_CACHE = collections.OrderedDict()   # Abfrage ohne offset/limit -> sortierte Treffer (Blättern ohne Neusuche)
-GRUPPEN_CACHE = collections.OrderedDict()   # gleicher Schlüssel -> {Bit: Zeilen, die nur an dieser Gruppe scheitern}
-# Bits der Facettengruppen in filtern(); Reihenfolge wie FACETTEN_GRUPPEN
+SUCH_CACHE = collections.OrderedDict()   # query without offset/limit -> sorted matches (paging without a new search)
+GRUPPEN_CACHE = collections.OrderedDict()   # same key -> {bit: rows that fail only on this group}
+# Bits of the facet groups in filtern(); order as in FACETTEN_GRUPPEN
 GRUPPEN_BIT = {n: 1 << i for i, n in enumerate(("art", "genre", "tonart", "takte", "swing", "gefuehl", "live",
                                                   "herkunft", "lizenz"))}
 
-# Paket 5 (24.10.2026): Ähnliche zu einem Sample. Gleiche lo; Loops: gleiche Art oder verwandte Gruppe (wie die
-# Zufall-Gruppen), Tonart gleich oder Camelot-Nachbar, BPM mit halb/doppelt in ±6 %, gemeinsame Instrumente und Stil;
-# One-Shots: gleiche Klasse, Grundton ±1 Halbton, Länge ±30 %, LUFS ±4. Ein Kriterium schließt nur aus, wenn beide
-# Werte bekannt sind; ein fehlender Wert gibt keine Punkte. Gleiches Pack bleibt immer drin und steht vorn.
+# Similar to a sample (24.10.2026). Same lo; loops: same type or related group (like the Random groups), key the same
+# or a Camelot neighbor, BPM with half/double within ±6 %, shared instruments and style; one-shots: same class, root
+# note ±1 semitone, length ±30 %, LUFS ±4. A criterion only excludes when both values are known; a missing value gives
+# no points. The same pack always stays in and comes first.
 AEHNLICH_GRUPPEN = ({"break", "kickloop", "fill"}, {"top", "perc", "hat", "cymbal"}, {"melodisch", "bass"})
 AEHNLICH_BPM, AEHNLICH_DAUER, AEHNLICH_LUFS = 0.06, 0.30, 4.0
 
 
 def grundton_midi(text):
-    """'G1' -> 31, 'C#2' -> 37, sonst None (Schreibweise wie _grundton_uebernehmen)."""
+    """'G1' -> 31, 'C#2' -> 37, otherwise None (spelling as in _grundton_uebernehmen)."""
     m = re.match(r"^([A-G][#b]?)(-?\d+)$", text or "")
     if not m or m.group(1) not in TONARTEN:
         return None
@@ -1222,7 +1248,7 @@ def grundton_midi(text):
 
 
 def aehnlich_vergleicher(p):
-    """-> (Bezugszeile, Info für die Oberfläche, Funktion zeile -> None oder (gleiches Pack, Punkte, Stufe)) oder None."""
+    """-> (reference row, info for the interface, function row -> None or (same pack, points, tier)) or None."""
     def eins(k):
         return (p.get(k) or [""])[0]
     pfad = nfc(eins("aehnlich"))
@@ -1230,12 +1256,12 @@ def aehnlich_vergleicher(p):
         return None
     r = INDEX.nach_pfad.get(pfad)
     if r is None:
-        raise Fehleingabe("aehnlich: Sample nicht in der Bibliothek")
+        raise Fehleingabe(tx("aehnlich: sample not in the library"))
     projekt = eins("aehnlich_bpm") != ""
-    if projekt:      # Projektrahmen an: sein Tempo statt dem des Samples
+    if projekt:      # project frame on: its tempo instead of the sample's
         tempo = zahl(eins("aehnlich_bpm"))
         if tempo is None or not 20 <= tempo <= 400:
-            raise Fehleingabe("aehnlich_bpm: 20 bis 400")
+            raise Fehleingabe(tx("aehnlich_bpm: 20 to 400"))
     else:
         tempo = r["bpm"]
     einzeln = r["lo"] == "oneshot"
@@ -1257,7 +1283,7 @@ def aehnlich_vergleicher(p):
             else:
                 hart = False
         if r["ton"] and z["ton"]:
-            if grundton_zeile(r) or grundton_zeile(z):      # Bass, 808: nur der Ton
+            if grundton_zeile(r) or grundton_zeile(z):      # bass, 808: only the note
                 ok, gleich = z["ton"] in nachbar_ton, z["ton"] == r["ton"]
             else:
                 ok = z["ton"] + (z["modus"] or "") in nachbarn
@@ -1273,10 +1299,10 @@ def aehnlich_vergleicher(p):
         if (z["klasse"] or z["art"]) != klasse:
             return None
         pk, hart = (1.0 if z["art"] == r["art"] else 0.0), True
-        geschaetzt = "leicht" in (r["ton_quelle"], z["ton_quelle"])     # nur Pluspunkte, nie Ausschluss (Prüfung 03.11.)
+        geschaetzt = "leicht" in (r["ton_quelle"], z["ton_quelle"])     # only bonus points, never an exclusion (check 03.11.)
         if r["ton"] and z["ton"] and z["ton"] in TONARTEN and r["ton"] in TONARTEN:
             m = grundton_midi(z["grundton"])
-            if midi is not None and m is not None:      # beide mit Oktave: ±1 Halbton echt (G0 ist zu G1 nicht nah)
+            if midi is not None and m is not None:      # both with octave: really ±1 semitone (G0 is not close to G1)
                 d = abs(m - midi)
             else:
                 a, b = TONARTEN.index(r["ton"]), TONARTEN.index(z["ton"])
@@ -1300,16 +1326,16 @@ def aehnlich_vergleicher(p):
         return pk, hart
 
     vergleich = schlag if einzeln else loop
-    # Musiker-Test 03.11.2026: mit Klang-Fingerabdruck entscheidet der Klang über die Reihenfolge. Pflicht bleibt, was
-    # musikalisch nicht passt (Prüfung 03.11.): Gruppe oder Klasse, Songs nur zu Songs, das Projekttempo, die Tonart
-    # bei melodisch und Bass. Groove, Tempo und Tonart geben kleine Zuschläge; Kandidaten ohne Fingerabdruck stehen hinten.
+    # With a sound fingerprint the sound decides the order. What does not fit musically stays mandatory (check
+    # 03.11.): group or class, songs only to songs, the project tempo, the key for melodic and bass. Groove, tempo and
+    # key give small bonuses; candidates without a fingerprint come last.
     klang_fehler = False
     try:
         klang_nah = KLANG.nachbarn(klang_schluessel(r)) if KLANG is not None else None
     except klangnaehe.DienstFehler:
         klang_nah, klang_fehler = None, True
-    # Nutzertest 2: ohne gehoer der grobe Fingerabdruck. Mit gehoer nicht (Prüfung 03.11.: er deckt dort nur die
-    # ungemessene Hälfte ab, die gemessene stünde geschlossen in der zweiten Stufe)
+    # Without gehoer, the rough fingerprint. Not with gehoer (check 03.11.: there it covers only the unanalyzed half,
+    # the analyzed half would stand as a block in the second tier)
     if klang_nah is None and LEICHT is not None and not os.path.exists(GEHOER):
         grob = LEICHT.nachbarn(r["pfad"])
         if grob:
@@ -1334,10 +1360,10 @@ def aehnlich_vergleicher(p):
                     return None
         w = klang_nah.get(klang_schluessel(z))
         if w is not None and w >= 0.9995:
-            return None          # derselbe Klang (Kopie mit anderem Namen): kein „ähnlich“ (Nutzertest 2)
+            return None          # the same sound (a copy under another name): not "similar"
         if w is None:
-            # ohne Fingerabdruck (oder nicht unter den nächsten 4.000): der alte Vergleich samt seiner Pflicht, als
-            # zweite Stufe hinter allen Klang-Treffern (Prüfung 03.11.: sonst stand der Rest nur nach Name da)
+            # without a fingerprint (or not among the nearest 4,000): the old comparison with its requirements, as a
+            # second tier behind all sound matches (check 03.11.: otherwise the rest stood there sorted by name only)
             e = vergleich(z)
             if e is None or not e[1]:
                 return None
@@ -1369,27 +1395,27 @@ def aehnlich_vergleicher(p):
         e = vergleich(z)
         if e is None:
             return None
-        if not e[1]:        # auch das gleiche Pack muss die Kriterien halten, es steht nur zuerst
+        if not e[1]:        # the same pack must also hold the criteria, it only comes first
             return None
         gleiches_pack = bool(r["pack"]) and z["pack"] == r["pack"]
-        # One-Shots: hat das Bezugssample einen Ton, kommen Kandidaten ohne Ton hinter die mit passendem Ton
+        # One-shots: if the reference sample has a note, candidates without a note come after those with a matching one
         stufe = not (einzeln and r["ton"] and not z["ton"])
         return gleiches_pack, round(e[0], 2), stufe
-    # fast alle Werte fehlen: Loops ohne Tempo, Tonart, Instrumente und Stil; One-Shots ohne Ton und LUFS
+    # almost all values missing: loops without tempo, key, instruments and style; one-shots without note and LUFS
     wenig = (r["ton"] is None and r["lufs"] is None) if einzeln else \
         (not tempo and r["ton"] is None and not instr and not stil)
     info = {"pfad": r["pfad"], "name": r["name"], "pack": r["pack"], "lo": r["lo"], "wenig": wenig,
             "laenge": einzeln and bool(r["dauer"]),
             "tempo": round(tempo, 2) if tempo and not einzeln else None,
-            "tempo_projekt": projekt and not einzeln,      # One-Shots haben kein Tempo
+            "tempo_projekt": projekt and not einzeln,      # one-shots have no tempo
             "klang": klang_nah is not None, "klang_moeglich": KLANG is not None and KLANG.verfuegbar(),
             "klang_fehler": klang_fehler}
     return r, info, punkte
 
 
-# Musiker-Test 03.11.2026: „808“ lieferte 4.951 Treffer nach Name, oben ganze Songs, weil gehoers Instrument-Begriffe
-# („sub bass or 808“) so viel zählten wie der Dateiname. Je Suchwort zählt das beste Feld; trifft es Name und Art, kommt
-# ein Zuschlag dazu (die 808 vor dem „808 Cymbal“). Ganze Songs rutschen nach hinten, außer die Suche will sie.
+# "808" gave 4,951 matches by name, full songs on top, because gehoer's instrument terms ("sub bass or 808") counted
+# as much as the file name. Per search word the best field counts; if it hits name and type, a bonus comes on top
+# (the 808 before the "808 Cymbal"). Full songs slide to the back, unless the search asks for them.
 RELEVANZ_FELD = (("_wname", 10), ("_wart", 8), ("_wort", 5), ("_wtag", 4))
 RELEVANZ_GANZ, RELEVANZ_NAME_UND_ART, RELEVANZ_REST = 2, 3, 1
 SONG_WOERTER = {"song", "songs", "beat", "beats", "track", "tracks", "instrumental", "type"}
@@ -1411,18 +1437,18 @@ def relevanz_punkte(z, mit):
                 best = gewicht
                 break
         if w in GENRE_WOERTER and best in (RELEVANZ_FELD[2][1], RELEVANZ_FELD[3][1]):
-            best = RELEVANZ_FELD[0][1]      # „drill“: das Pack „VVS: Flawless Drill“ zählt wie ein Name
+            best = RELEVANZ_FELD[0][1]      # "drill": the pack "VVS: Flawless Drill" counts like a name
         elif best == RELEVANZ_FELD[0][1]:
             if " " + w + " " in z["_wname"]:
                 best += RELEVANZ_GANZ
-            # nur wenn gehoer die Klasse gemessen hat: sonst stammt die Art meist aus demselben Namen (doppelt gezählt)
+            # only when gehoer analyzed the class: otherwise the type mostly comes from the same name (counted twice)
             if z["klasse_quelle"] == "gemessen" and z["klasse"] and drin(" " + z["klasse"] + " "):
                 best += RELEVANZ_NAME_UND_ART
-            # „808 CH.wav“ ist eine Hi-Hat der 808: hat gehoer eine andere Klasse gemessen, rutscht sie nach hinten
+            # "808 CH.wav" is a hi-hat of the 808: if gehoer analyzed another class, it slides back
             elif (w in EINZELSCHLAG and z["klasse_quelle"] == "gemessen" and z["klasse"]
                   and z["klasse"] != w and w not in KLASSE_VERWANDT.get(z["klasse"], ())):
                 best -= RELEVANZ_NAME_UND_ART
-            # ebenso, wenn die Art aus dem Namen ein anderer Schlag ist („Sn 808.wav“ ist eine Snare der TR-808)
+            # likewise when the type from the name is another hit ("Sn 808.wav" is a snare of the TR-808)
             elif (w in EINZELSCHLAG and z["art"] in EINZELSCHLAG and z["art"] != w
                   and w not in KLASSE_VERWANDT.get(z["art"], ())):
                 best -= RELEVANZ_NAME_UND_ART
@@ -1431,14 +1457,14 @@ def relevanz_punkte(z, mit):
 
 
 def song_hinten(z, mit):
-    """Ganze Songs als eigene Stufe hinter allem, außer die Suche will Songs (Prüfung 03.11.: „drill“)."""
+    """Full songs as their own tier behind everything, unless the search asks for songs (check 03.11.: "drill")."""
     return z["art"] == "song" and not SONG_WOERTER.intersection(mit)
 
 
 def nach_pack_streuen(zeilen, stufe):
-    """Innerhalb gleicher Stufe abwechselnd je ein Treffer aus jedem Pack, statt einer Wand aus einem Pack (Prüfung
-    03.11.: zu „808“ standen 21 der ersten 50 aus einem einzigen Drumkit). Packs in der Reihenfolge ihres ersten
-    Auftretens, innerhalb des Packs bleibt die Reihenfolge."""
+    """Within the same tier, one match from each pack in turn instead of a wall from one pack (check 03.11.: for
+    "808", 21 of the first 50 came from a single drum kit). Packs in the order they first appear; within a pack the
+    order stays."""
     aus, i, n = [], 0, len(zeilen)
     while i < n:
         s, j = stufe(zeilen[i]), i
@@ -1459,8 +1485,8 @@ def nach_pack_streuen(zeilen, stufe):
 
 
 def einzelschlag_ohne_tempo(z):
-    """One-Shot, oder kurz, ohne Tempo und nicht als Loop geführt (Prüfung 03.11.: rund 5.000 Snares, Hats, Toms und
-    Kicks haben lo leer, etwa die Serum-Drums; sie fielen beim Rahmen sonst weiter heraus)."""
+    """One-shot, or short, without tempo and not listed as a loop (check 03.11.: around 5,000 snares, hats, toms and
+    kicks have lo empty, e.g. the Serum drums; otherwise they kept dropping out with the frame)."""
     if z["lo"] == "oneshot":
         return True
     return z["lo"] == "" and z["bpm"] is None and z["art"] != "song" and z["dauer"] is not None and z["dauer"] < 6
@@ -1471,9 +1497,9 @@ def klang_schluessel(z):
 
 
 def tempo_passend(b, gefuehl, bmin, bmax, halb):
-    """Das Tempo, unter dem eine Zeile in den Bereich bmin bis bmax passt, sonst None. Das eigene Tempo mit 0,5 BPM
-    Spiel (gerundete Angaben); mit halb auch das doppelte, halbe und gefühlte (Halftime, punktierte Viertel bei 6/8),
-    die aber nur genau im Bereich (Test 20.10.: Breaks 88 bis 94 fanden DnB mit 175 als 87,5)."""
+    """The tempo under which a row fits into the range bmin to bmax, otherwise None. Its own tempo with 0.5 BPM of
+    play (rounded values); with halb also double, half and felt (halftime, dotted quarter in 6/8), but those only
+    exactly within the range (test 20.10.: breaks 88 to 94 found DnB at 175 as 87.5)."""
     if b is None:
         return None
     if (bmin is None or b >= bmin - 0.5) and (bmax is None or b <= bmax + 0.5):
@@ -1486,21 +1512,21 @@ def tempo_passend(b, gefuehl, bmin, bmax, halb):
 
 
 def filtern(p, gruppen=False):
-    """p: Abfrage-Parameter (dict von Listen). Gibt die passenden Zeilen in Sortierung zurück.
-    gruppen=True (linke Spalte, Prüfung 24.10.): -> (Treffer, {Bit: Zeilen}); unter dem Bit einer Facettengruppe
-    (GRUPPEN_BIT) stehen die Zeilen, die nur an dieser einen Gruppe scheitern. Treffer plus diese Zeilen sind genau die
-    Treffer ohne die Auswahl der Gruppe, alles in einem Durchgang (vorher je gesetzter Gruppe eine eigene Suche)."""
-    # Paket 10: Notizen ändern sich ohne neuen Index, ihr Stand gehört in den Schlüssel
-    # Paket 4: Verworfen ebenso, und der Verlauf, wenn „noch nie gehört“ filtert
+    """p: query parameters (dict of lists). Returns the matching rows in sort order.
+    gruppen=True (left column, check 24.10.): -> (matches, {bit: rows}); under the bit of a facet group (GRUPPEN_BIT)
+    are the rows that fail only on that one group. Matches plus these rows are exactly the matches without that
+    group's selection, all in one pass (before, one search of its own per set group)."""
+    # notes change without a new index, their state belongs in the key
+    # discarded ones too, and the history when "never played" filters
     nie_gehoert = (p.get("nie_gehoert") or [""])[0] == "1"
     schluessel = (INDEX.version, sammlungen.notiz_stand(), sammlungen.verworfen_stand(),
                   verlauf.stand() if nie_gehoert else 0,
-                  KLANG.stempel() if KLANG is not None and p.get("aehnlich") else 0,      # Musiker-Test 03.11.
-                  LEICHT.stempel() if LEICHT is not None and p.get("aehnlich") else 0,    # Nutzertest 2
+                  KLANG.stempel() if KLANG is not None and p.get("aehnlich") else 0,      # sound fingerprints
+                  LEICHT.stempel() if LEICHT is not None and p.get("aehnlich") else 0,    # rough fingerprints
                   tuple(sorted((k, tuple(v)) for k, v in p.items() if k not in ("offset", "limit"))))
-    # Favoriten und Playlists ändern sich ohne neuen Index: dann nie aus dem Zwischenspeicher
+    # Favorites and playlists change without a new index: then never from the cache
     sammlung = (p.get("sammlung") or [""])[0]
-    # mit gruppen nur, wenn beide Teile aus demselben Durchgang stammen (SUCH_CACHE wird an drei Stellen geleert)
+    # with gruppen only when both parts come from the same pass (SUCH_CACHE is cleared in three places)
     if gruppen and not sammlung and schluessel in GRUPPEN_CACHE and GRUPPEN_CACHE[schluessel][0] is SUCH_CACHE.get(schluessel):
         GRUPPEN_CACHE.move_to_end(schluessel)
         SUCH_CACHE.move_to_end(schluessel)
@@ -1508,12 +1534,12 @@ def filtern(p, gruppen=False):
     if not gruppen and schluessel in SUCH_CACHE and not sammlung:
         SUCH_CACHE.move_to_end(schluessel)
         return SUCH_CACHE[schluessel]
-    # Paket 4: Gehört und Gezogen kommen aus verlauf.json, mit Zeit je Zeile, neueste zuerst
+    # Played and Dragged come from verlauf.json, with a time per row, newest first
     verlauf_eintraege, verlauf_rang = verlauf.eintraege(sammlung) if sammlung in VERLAUF_SAMMLUNGEN else (None, None)
     in_sammlung = set(verlauf_eintraege) if verlauf_eintraege is not None else \
         sammlungen.pfade_fuer(sammlung) if sammlung else None
-    # Paket 4: verworfene fehlen überall, außer in Verworfen selbst, im Verlauf (Gehört, Gezogen: dort mit Zeichen,
-    # damit Zahl und Liste übereinstimmen und nichts Gezogenes aus dem Blick fällt) und mit verworfene=1
+    # discarded ones are missing everywhere, except in Discarded itself, in the history (Played, Dragged: there with a
+    # mark, so that count and list agree and nothing dragged drops out of sight) and with verworfene=1
     weg = set() if sammlung == "verworfen" or verlauf_eintraege is not None or (p.get("verworfene") or [""])[0] == "1" \
         else sammlungen.verworfen()
     schon_gehoert = verlauf.gehoert_menge() if nie_gehoert else ()
@@ -1525,24 +1551,24 @@ def filtern(p, gruppen=False):
         return {x.strip() for x in eins(k).split(",") if x.strip()}
 
     roh = nfc(eins("q")).split()
-    # Synonyme auf den ganzen Text, nicht je Wort: "boom bap" und "lo fi" sind ein Begriff (vorher 0 bzw. 232 Treffer)
+    # synonyms on the whole text, not per word: "boom bap" and "lo fi" are one term (before 0 and 232 matches)
     mit = woerter(" ".join(t for t in roh if not t.startswith("-")))
-    ohne_w = [w for t in roh if t.startswith("-") and len(t) > 1 for w in woerter(t[1:])]   # "-vocal" schließt aus
+    ohne_w = [w for t in roh if t.startswith("-") and len(t) > 1 for w in woerter(t[1:])]   # "-vocal" excludes
 
-    def trifft(w, wt):   # Wörter am Wortanfang, Zahlen nur ganz ("80" soll nicht "808" finden)
+    def trifft(w, wt):   # words at the start of a word, numbers only whole ("80" should not find "808")
         return (" " + w + " " in wt) if w.isdigit() else (" " + w in wt)
     arten, herkunft, lizenzen = menge("art"), menge("herkunft"), menge("lizenz")
     stimmungen = {w for s in menge("stimmung") for w in stimmung_woerter(s)}
     ohne = {f: menge(f + "_nicht") for f in ("art", "herkunft", "lizenz", "swing", "gefuehl", "live", "klasse")}
     ohne["stimmung"] = {w for s in menge("stimmung_nicht") for w in stimmung_woerter(s)}
-    # linke Spalte 24.10.: Genre als eigene Gruppe (ODER innen, UND mit Vibe), ohne Genre wie ein Minus bei Vibe
+    # left column: genre as its own group (OR inside, AND with vibe), without genre like a minus on vibe
     genres = {w for g in menge("genre") for w in GENRE_GRUPPEN.get(g, (g,))}
     genre_ohne = {w for g in menge("genre_nicht") for w in GENRE_GRUPPEN.get(g, (g,))}
     ohne["swing"] = {w for s in ohne["swing"] for w in SWING_GRUPPEN.get(s, (s,))}
-    # "ohne 808" bei Einzelschlag nimmt auch alles mit 808 im Namen, Pack oder Ordner raus, wie "-808" in der Suche
-    # (Test 20.10.: "Kick ohne 808" ließ eine „808 Kick“ aus dem Ordner 808s stehen)
+    # "without 808" with one-shots also removes everything with 808 in name, pack or folder, like "-808" in the search
+    # (test 20.10.: "Kick without 808" left an "808 Kick" from the folder 808s standing)
     ohne_808 = "808" in ohne["klasse"]
-    # gehoer-Werte: nur bekannte Werte passen, ausschließen trifft nur bekannte (Unbekanntes bleibt drin)
+    # gehoer values: only known values match, excluding only hits known ones (unknown stays in)
     swings, gefuehle, live, klassen = menge("swing"), menge("gefuehl"), menge("live"), menge("klasse")
     swings = {w for s in swings for w in SWING_GRUPPEN.get(s, (s,))}
 
@@ -1550,7 +1576,7 @@ def filtern(p, gruppen=False):
         try:
             return {int(x) for x in menge(k)}
         except ValueError:
-            raise Fehleingabe(f"{k}: nur ganze Zahlen")
+            raise Fehleingabe(tx("{k}: whole numbers only", k=k))
     takte, takte_ohne = takte_menge("takte"), takte_menge("takte_nicht")
     tmin, tmax = zahl(eins("takte_min")), zahl(eins("takte_max"))
     if tmin is not None and tmax is not None and tmin > tmax:
@@ -1558,42 +1584,42 @@ def filtern(p, gruppen=False):
 
     def takte_ist(t, n):
         return t is not None and abs(t - n) <= 0.1
-    # der gehoer-Teil der Schleife läuft nur, wenn einer dieser Filter gesetzt ist (spart rund 20 % je Suche)
+    # the gehoer part of the loop only runs when one of these filters is set (saves around 20 % per search)
     gehoer_filter = bool(swings or gefuehle or live or klassen or takte or takte_ohne or tmin is not None
                          or tmax is not None or any(ohne[f] for f in ("swing", "gefuehl", "live", "klasse")))
     tonarten, grundtoene = tonart_mengen(menge("tonart"), eins("passend") == "1", eins("ton_abstand"))
     drums_frei = eins("drums_ohne_ton") == "1"
     lo, pack = eins("lo"), eins("pack")
-    bmin, bmax = tempo_bereich(p, eins)     # mit bpm_toleranz geweitet (Paket 1)
+    bmin, bmax = tempo_bereich(p, eins)     # widened with bpm_toleranz
     dmax, dmin = zahl(eins("dauer_max")), zahl(eins("dauer_min"))
     if dmin is not None and dmax is not None and dmin > dmax:
         dmin, dmax = dmax, dmin
     nur_gemessen, halb, alle_kopien = eins("gemessen") == "1", eins("halb") == "1", eins("doppelte") == "1"
 
     tempo = bmin is not None or bmax is not None
-    # Musiker-Test 03.11.2026: beim Projektrahmen „140 · F#m“ blieben 13 von 63.354 One-Shots, 808 und Kick hatten 0.
-    # Ein Einzelschlag hat kein Tempo; mit oneshots_ohne_tempo (setzt die Seite, solange der Rahmen ein Tempo stellt)
-    # filtert das Tempo nur Loops und Songs
+    # With the project frame "140 · F#m", 13 of 63,354 one-shots were left, 808 and kick had 0. A one-shot has no
+    # tempo; with oneshots_ohne_tempo (the page sets it while the frame sets a tempo) the tempo filters only loops and
+    # songs
     oneshot_frei = eins("oneshots_ohne_tempo") == "1"
-    # Paket 10: Notizen sind durchsuchbar wie Name und Tags (Wortanfänge), notiz=1 lässt nur Samples mit Notiz
+    # notes are searchable like name and tags (word starts), notiz=1 keeps only samples with a note
     nur_notiz = eins("notiz") == "1"
     notiz_text = sammlungen.notizen() if (mit or ohne_w or nur_notiz) else {}
     notiz_woerter = {k: " " + " ".join(woerter(t)) + " " for k, t in notiz_text.items()} if (mit or ohne_w) else {}
-    aehnlich = aehnlich_vergleicher(p)       # Paket 5
+    aehnlich = aehnlich_vergleicher(p)       # Similar
     aus = []
-    extra = collections.defaultdict(list)    # nur mit gruppen: Bit -> Zeilen, die nur an dieser Gruppe scheitern
+    extra = collections.defaultdict(list)    # only with gruppen: bit -> rows that fail only on this group
     G_ART, G_GENRE, G_TON, G_TAKTE, G_SWING = (GRUPPEN_BIT[n] for n in ("art", "genre", "tonart", "takte", "swing"))
     G_GEFUEHL, G_LIVE, G_HERKUNFT, G_LIZENZ = (GRUPPEN_BIT[n] for n in ("gefuehl", "live", "herkunft", "lizenz"))
     frueh_ohne = bool(ohne["art"] or ohne["herkunft"] or ohne["lizenz"] or genre_ohne)
     for z in INDEX.zeilen:
         if in_sammlung is not None:
-            if z["pfad"] not in in_sammlung:   # in Favoriten und Playlists zählen auch Kopien
+            if z["pfad"] not in in_sammlung:   # in favorites and playlists copies count too
                 continue
         elif z["ist_kopie"] and not alle_kopien:
             continue
         if nur_notiz and z["pfad"] not in notiz_text:
             continue
-        if z["pfad"] in weg or z["pfad"] in schon_gehoert:      # Paket 4
+        if z["pfad"] in weg or z["pfad"] in schon_gehoert:      # discarded, already played
             continue
         wt = z["woerter"]
         if notiz_woerter and z["pfad"] in notiz_woerter:
@@ -1604,7 +1630,7 @@ def filtern(p, gruppen=False):
             continue
         if ohne["stimmung"].intersection(z["stimmung"]):
             continue
-        # Gruppen der Spalte: ohne gruppen scheitert die Zeile sofort, mit gruppen zählt sie, solange nur eine scheitert
+        # groups of the column: without gruppen the row fails at once, with gruppen it counts as long as only one fails
         fehl = 0
         if frueh_ohne:
             fehl = ((G_ART if z["art"] in ohne["art"] else 0) | (G_HERKUNFT if z["herkunft"] in ohne["herkunft"] else 0)
@@ -1612,12 +1638,12 @@ def filtern(p, gruppen=False):
                     | (G_GENRE if genre_ohne and genre_ohne.intersection(z["stimmung"]) else 0))
             if fehl and (not gruppen or fehl & (fehl - 1)):
                 continue
-        # Tempo: das passende (bei halb/doppelt das umgerechnete oder das gefühlte, etwa die punktierte Viertel bei 6/8)
+        # Tempo: the matching one (with half/double the converted or the felt one, e.g. the dotted quarter in 6/8)
         k = tempo_passend(z["bpm"], z["bpm_gefuehl"], bmin, bmax, halb) if tempo else None
         if tempo and k is None and not (oneshot_frei and einzelschlag_ohne_tempo(z)):
             continue
         umgerechnet = k is not None and abs(k - z["bpm"]) > 0.01
-        # Takte beim passenden Tempo: ein 4-Takter in 70 füllt bei 140 acht Takte (Test 20.10.: "140 aus 70", "4 Takte")
+        # bars at the matching tempo: a 4-bar loop at 70 fills eight bars at 140 (test 20.10.: "140 from 70", "4 bars")
         tk = z["takte"] * k / z["bpm"] if umgerechnet and z["takte"] is not None else z["takte"]
         if gehoer_filter:
             if z["swing"] in ohne["swing"] or (swings and z["swing"] not in swings):
@@ -1635,7 +1661,7 @@ def filtern(p, gruppen=False):
             if fehl and (not gruppen or fehl & (fehl - 1)):
                 continue
         if arten and z["art"] not in arten:
-            # Hat- und Perc-Loops stehen im Bestand meist als "top" (Test 19.10.: 1.199 Perc-Loops unter top)
+            # Hat and perc loops are mostly listed as "top" in the library (test 19.10.: 1,199 perc loops under top)
             if not (z["art"] == "top" and (("hat" in arten and " hat" in wt) or ("perc" in arten and " perc" in wt))):
                 fehl |= G_ART
         if herkunft and z["herkunft"] not in herkunft:
@@ -1667,10 +1693,10 @@ def filtern(p, gruppen=False):
             if nah is None:
                 continue
             z = dict(z, aehnlich_pack=nah[0], aehnlich_punkte=nah[1], aehnlich_stufe=nah[2])
-        if umgerechnet:   # umgerechnetes Tempo und Takte dabei mitgeben (Anzeige "130 aus 65")
+        if umgerechnet:   # pass along the converted tempo and bars (display "130 from 65")
             z = dict(z, bpm_passend=round(k, 2), bpm_passend_gefuehl=k == z["bpm_gefuehl"],
                      **({"takte_passend": round(tk, 2)} if tk is not None else {}))
-        if verlauf_eintraege is not None:     # Paket 4: Zeit (und bei Gezogen die gerechnete Datei) in die Zeile
+        if verlauf_eintraege is not None:     # time (and for Dragged the rendered file) into the row
             e = verlauf_eintraege[z["pfad"]]
             z = dict(z, verlauf_zeit=e["zeit"], **({"verlauf_datei": e["datei"]} if e.get("datei") else {}))
         if fehl:
@@ -1680,12 +1706,12 @@ def filtern(p, gruppen=False):
 
     sort, ab = eins("sort", "relevanz"), eins("ab") == "1"
     if sort == "relevanz":
-        # mit Suchtext: beste Treffer zuerst, bei Gleichstand der kürzere Name; ohne Suchtext: keine Songs vorn, dann die
-        # neueste Datei (frisch Geladenes und neue Ordner oben). Mehrere stabile Durchgänge statt eines Schlüssels.
+        # with a search text: best matches first, on a tie the shorter name; without a search text: no songs in front,
+        # then the newest file (fresh downloads and new folders on top). Several stable passes instead of one key.
         aus.sort(key=lambda z: z["name"].casefold())
         if mit:
             aus.sort(key=lambda z: len(z["name"]))
-            # Rang neben der Zeile, nicht in ihr: die Zeilen gehören dem Index, gleichzeitige Suchen teilen sie
+            # rank next to the row, not inside it: the rows belong to the index, concurrent searches share them
             rang = {id(z): (song_hinten(z, mit), -relevanz_punkte(z, mit)) for z in aus}
             aus.sort(key=lambda z: rang[id(z)])
             aus[:] = nach_pack_streuen(aus, lambda z: rang[id(z)])
@@ -1705,22 +1731,22 @@ def filtern(p, gruppen=False):
         "pack": lambda z: z["pack"].casefold(),
         "art": lambda z: z["art"],
         "geladen": lambda z: z.get("geladen_am") or "",
-        # Paket 6: Lizenz von verkaufbar bis nein, dann der Name; Datum der Datei (die Seite schickt neueste zuerst)
+        # license from sellable to nein, then the name; date of the file (the page sends newest first)
         "lizenz": lambda z: (LIZENZ_RANG.get(z["lizenz"], 3), z["name"].casefold()),
         "datum": lambda z: (z["datum"], z["name"].casefold()),
-        # Paket 5: Ähnliche nach Nähe, gleiches Pack zuerst
+        # Similar by closeness, the same pack first
         "naehe": lambda z: (not z.get("aehnlich_pack"), not z.get("aehnlich_stufe", True), -z.get("aehnlich_punkte", 0),
                             z["name"].casefold()),
     }.get(sort)
-    if sammlung and sort == "liste":   # Reihenfolge wie in der Playlist (beim Hinzufügen); Verlauf: neueste zuerst
+    if sammlung and sort == "liste":   # order as in the playlist (when added); history: newest first
         rang = verlauf_rang if verlauf_rang is not None else sammlungen.reihenfolge(sammlung)
         aus.sort(key=lambda z: rang.get(z["pfad"], 1e9), reverse=ab)
         return (aus, dict(extra)) if gruppen else aus
     if sortier:
         aus.sort(key=sortier, reverse=ab)
-        if sort in leer:   # leere Werte immer ans Ende
+        if sort in leer:   # empty values always at the end
             aus.sort(key=leer[sort])
-    if sammlung or (aehnlich and aehnlich[1].get("klang_fehler")):     # Dienstfehler: nächstes Mal neu fragen
+    if sammlung or (aehnlich and aehnlich[1].get("klang_fehler")):     # service error: ask again next time
         return (aus, dict(extra)) if gruppen else aus
     SUCH_CACHE[schluessel] = aus
     while len(SUCH_CACHE) > 24:
@@ -1733,13 +1759,13 @@ def filtern(p, gruppen=False):
     return aus
 
 
-# Zufalls-Loop: Loops im Bestand am 20.10.2026: break 3.810, melodisch 2.550, top 2.435, bass 758, kickloop 300, fill 74
+# Random loop: loops in the library on 20.10.2026: break 3,810, melodisch 2,550, top 2,435, bass 758, kickloop 300, fill 74
 ZUFALL_TYPEN = {"drums": {"break", "kickloop", "fill"}, "perc": {"top", "perc", "hat", "cymbal"},
                 "melodie": {"melodisch", "bass"}, "alle": None}
 
 
 def zufall(p):
-    """Ein zufälliger Loop nach Typ und Tempo. ohne=Nummern der zuletzt gezeigten, damit nichts gleich wiederkommt."""
+    """A random loop by type and tempo. ohne=numbers of the ones shown last, so that nothing comes back right away."""
     import random
 
     def eins(k, std=""):
@@ -1747,17 +1773,17 @@ def zufall(p):
     if eins("typ") == "suche":
         return _zufall_aus_suche(p, eins)
     arten = ZUFALL_TYPEN.get(eins("typ", "alle"), None)
-    bmin, bmax = tempo_bereich(p, eins)     # mit bpm_toleranz geweitet (Paket 1)
+    bmin, bmax = tempo_bereich(p, eins)     # widened with bpm_toleranz
     halb = eins("halb") == "1"
-    # Tonart (Paket 1, Projektrahmen): melodische Loops vergleichen, Drums ohne Ton bleiben drin
+    # Key (project frame): compare melodic loops, drums without a note stay in
     tonarten, grundtoene = tonart_mengen({x.strip() for x in eins("tonart").split(",") if x.strip()},
                                          eins("passend") == "1", eins("ton_abstand"))
     tempo = bmin is not None or bmax is not None
 
-    def tempo_ok(z):   # dieselbe Regel wie in der Bibliothek (tempo_passend)
+    def tempo_ok(z):   # the same rule as in the library (tempo_passend)
         return not tempo or tempo_passend(z["bpm"], z["bpm_gefuehl"], bmin, bmax, halb) is not None
     lizenzen = {x for x in eins("lizenz").split(",") if x}
-    weg = set() if eins("verworfene") == "1" else sammlungen.verworfen()      # Paket 4
+    weg = set() if eins("verworfene") == "1" else sammlungen.verworfen()      # discarded ones
     kand = [i for i, z in enumerate(INDEX.zeilen)
             if z["lo"] == "loop" and not z["ist_kopie"] and z["pfad"] not in weg and (arten is None or z["art"] in arten)
             and (not lizenzen or z["lizenz"] in lizenzen) and tempo_ok(z)
@@ -1768,14 +1794,14 @@ def zufall(p):
     z = INDEX.zeilen[i]
     zeile = dict(oeffentlich(z), nr=i)
     k = tempo_passend(z["bpm"], z["bpm_gefuehl"], bmin, bmax, halb) if tempo else None
-    if k is not None and abs(k - z["bpm"]) > 0.01:     # auf der Karte "140 aus 70" wie in der Liste
+    if k is not None and abs(k - z["bpm"]) > 0.01:     # on the card "140 from 70" as in the list
         zeile.update(bpm_passend=round(k, 2), bpm_passend_gefuehl=k == z["bpm_gefuehl"])
     return {"gesamt": len(kand), "zeile": zeile, **nie}
 
 
 def _zufall_waehlen(kand, eins, pfad_von):
-    """Eine Nummer aus kand: nicht unter den zuletzt gezeigten (ohne); mit nie_zuerst zuerst noch nie gehörte
-    (Paket 5). -> (Nummer, {"nie_gehoert": Anzahl der nie gehörten unter kand} oder {})."""
+    """A number from kand: not among the ones shown last (ohne); with nie_zuerst never played ones first.
+    -> (number, {"nie_gehoert": count of the never played ones in kand} or {})."""
     import random
     ohne = {int(x) for x in eins("ohne").split(",") if x.isdigit()}
     pool = [i for i in kand if i not in ohne] or kand
@@ -1791,7 +1817,7 @@ _POS = {"version": None, "nr": {}}
 
 
 def index_nummer(pfad):
-    """Stelle einer Zeile in INDEX.zeilen (die Nummer, die der Zufall als nr schickt), neu je Index-Stand."""
+    """Position of a row in INDEX.zeilen (the number Random sends as nr), new per index state."""
     if _POS["version"] != INDEX.version:
         _POS["nr"] = {z["pfad"]: i for i, z in enumerate(INDEX.zeilen)}
         _POS["version"] = INDEX.version
@@ -1799,8 +1825,8 @@ def index_nummer(pfad):
 
 
 def _zufall_aus_suche(p, eins):
-    """Paket 5: ein Loop aus den Treffern der Bibliothekssuche (dieselben Parameter wie die Liste, auch Sammlung
-    oder Playlist). Der Zufall spielt nur Loops; treffer zählt alle Treffer, gesamt die Loops darunter."""
+    """A loop from the matches of the library search (the same parameters as the list, a collection or playlist
+    too). Random only plays loops; treffer counts all matches, gesamt the loops among them."""
     q = {k: v for k, v in p.items() if k in SUCHE_PARAMETER and k not in ("offset", "limit")}
     treffer = filtern(q)
     loops = {}
@@ -1819,9 +1845,9 @@ def _zufall_aus_suche(p, eins):
 
 
 def tonart_zahlen(zeilen, drums_frei=False):
-    """Zahl je Tonart-Chip = Treffer der Suche nach genau dieser Tonart (Prüfung 24.10.: Fm zeigte 271, die Suche
-    fand 1.489). Wie tonart_passt(): Zeilen, die nur den Grundton tragen (One-Shots ohne Modus, Bass und Co.), zählen
-    bei Dur und Moll ihres Grundtons; mit drums_ohne_ton zählen Drums ohne Tonart bei jeder Tonart mit."""
+    """Count per key chip = matches of the search for exactly this key (check 24.10.: Fm showed 271, the search
+    found 1,489). Like tonart_passt(): rows that carry only the root note (one-shots without mode, bass and co.) count
+    for major and minor of their root note; with drums_ohne_ton, drums without a key count for every key."""
     c = collections.Counter()
     drums = 0
     for z in zeilen:
@@ -1849,18 +1875,18 @@ def genre_zahlen(zeilen):
             treffer = {WORT_GENRE[w] for w in z["stimmung"] if w in WORT_GENRE}
             if treffer:
                 genre.update(treffer)
-    return [[k, genre.get(k, 0)] for k in GENRE_GRUPPEN]      # linke Spalte 24.10., feste Reihenfolge
+    return [[k, genre.get(k, 0)] for k in GENRE_GRUPPEN]      # left column, fixed order
 
 
 def gehoer_zahlen(zeilen, felder):
-    """gehoer-Werte in einem Durchgang; feste Reihenfolge, auch mit 0 (die Chips stehen immer gleich da, 0 zeigt die
-    fehlende Messung)."""
+    """gehoer values in one pass; fixed order, also with 0 (the chips always stand the same, 0 shows the missing
+    analysis)."""
     g = {f: collections.Counter() for f in ("takte", "swing", "gefuehl", "live", "klasse")}
     mit_takte = "takte" in felder
     andere = [f for f in ("swing", "gefuehl", "live", "klasse") if f in felder]
     for z in zeilen:
         if mit_takte:
-            t = z.get("takte_passend", z["takte"])     # beim passenden Tempo gezählt, wie in der Liste
+            t = z.get("takte_passend", z["takte"])     # counted at the matching tempo, as in the list
             if t is not None:
                 n = int(round(t))
                 if abs(t - n) <= 0.1:
@@ -1874,7 +1900,7 @@ def gehoer_zahlen(zeilen, felder):
 
 
 def facetten(zeilen, nur=None, drums_frei=False):
-    """nur: Menge der Facetten, die gebraucht werden (die Zählung ohne eigene Auswahl braucht je Gruppe nur ihre)."""
+    """nur: set of facets that are needed (counting without its own selection needs only its own per group)."""
     def zaehl(feld, liste=False):
         c = collections.Counter()
         for z in zeilen:
@@ -1898,20 +1924,20 @@ def facetten(zeilen, nur=None, drums_frei=False):
     return {
         "genre": genre_zahlen(zeilen),
         "art": zaehl("art"), "herkunft": zaehl("herkunft"), "lizenz": zaehl("lizenz"),
-        # der Vibe live steckt im Filter Live gespielt (sonst zweimal live mit verschiedenen Zahlen, Test 20.10.)
+        # the vibe live lives in the filter played live (otherwise live twice with different numbers, test 20.10.)
         "stimmung": [x for x in zaehl("stimmung", True) if x[0] != "live"][:400], "lo": zaehl("lo"),
         "tonart": tonart_zahlen(zeilen, drums_frei),
         **gehoer_zahlen(zeilen, ("takte", "swing", "gefuehl", "live", "klasse")),
         "mit_bpm": sum(1 for z in zeilen if z["bpm"] is not None),
         "mit_tonart": sum(1 for z in zeilen if z["ton"]),
-        "lizenz_erklaerung": LIZENZ_ERKLAERUNG,
+        "lizenz_erklaerung": {k: tx(v) for k, v in LIZENZ_ERKLAERUNG.items()},
     }
 
 
-# Linke Spalte (24.10.2026): jede Gruppe zählt ohne ihre eigene Auswahl. Ist Hat gewählt, zeigt Snare, wie viele Snares
-# es mit den übrigen Filtern gäbe (vorher 0, und bei fester Reihenfolge wurde nach jedem Klick die ganze Gruppe blass).
-# Je Gruppe: (Parameter, die wegfallen; Facetten, die daraus kommen). Art und Klasse sind eine Gruppe, weil die Spalte im
-# Modus One-Shots Kick bis Rim über die Klasse und Bass, Vocal, FX über die Art filtert.
+# Left column (24.10.2026): every group counts without its own selection. With Hat selected, Snare shows how many
+# snares there would be with the other filters (before 0, and with a fixed order the whole group turned pale after
+# every click). Per group: (parameters that drop out; facets that come from them). Type and class are one group,
+# because in one-shot mode the column filters Kick to Rim via the class and Bass, Vocal, FX via the type.
 FACETTEN_GRUPPEN = [
     (("art", "art_nicht", "klasse", "klasse_nicht"), ("art", "klasse")),
     (("genre", "genre_nicht"), ("genre",)),
@@ -1929,16 +1955,16 @@ GRUPPEN_NAMEN = ("art", "genre", "tonart", "takte", "swing", "gefuehl", "live", 
 
 
 def gruppen_gesetzt(p):
-    """Bits der Facettengruppen, für die p eine eigene Auswahl hat."""
+    """Bits of the facet groups for which p has its own selection."""
     gesetzt = {k for k, v in p.items() if any(x.strip() for x in v)}
     return [(GRUPPEN_BIT[n], felder) for n, (parameter, felder) in zip(GRUPPEN_NAMEN, FACETTEN_GRUPPEN)
             if gesetzt.intersection(parameter)]
 
 
 def facetten_ohne_eigene(p, f, treffer=None, extra=None):
-    """f: Facetten der Treffer. Für jede Gruppe mit eigener Auswahl werden ihre Zahlen ohne diese Auswahl neu gezählt
-    (alle übrigen Filter gelten). treffer, extra: aus filtern(p, gruppen=True); die Zeilen ohne die Auswahl einer
-    Gruppe sind Treffer plus extra[Bit], es braucht keine weitere Suche (Prüfung 24.10.: vorher +43 ms)."""
+    """f: facets of the matches. For every group with its own selection its counts are recounted without that
+    selection (all other filters apply). treffer, extra: from filtern(p, gruppen=True); the rows without the selection
+    of a group are matches plus extra[bit], no further search needed (check 24.10.: before, +43 ms)."""
     gesetzt = gruppen_gesetzt(p)
     if gesetzt and extra is None:
         treffer, extra = filtern(p, gruppen=True)
@@ -1951,17 +1977,17 @@ def facetten_ohne_eigene(p, f, treffer=None, extra=None):
     return f
 
 
-LIZENZ_RANG = {"ja": 0, "unklar": 1, "ungeprüft": 2, "unbekannt": 3, "nein": 4}    # Sortierung Lizenz (Paket 6)
+LIZENZ_RANG = {"ja": 0, "unklar": 1, "ungeprüft": 2, "unbekannt": 3, "nein": 4}    # sorting by license
 
 
 def oeffentlich(z):
-    # "_" davor: nur für den Server (Suchwörter ohne Art, Stand vor einer Korrektur)
+    # "_" in front: only for the server (search words without type, state before a correction)
     return {k: v for k, v in z.items() if k not in ("woerter", "gruppe") and not k.startswith("_")}
 
 
-# ================================================================ Messen (gehoer)
+# ================================================================ Analysis (gehoer)
 
-IN_ARBEIT = "Analyse nicht abgeschlossen"     # Anfang von gehoers Vermerk, solange eine Datei rechnet
+IN_ARBEIT = "Analyse nicht abgeschlossen"     # start of gehoer's note while a file is being analyzed (gehoer's wording)
 _SCAN_STAND = {"zeit": 0.0, "wert": None}
 
 
@@ -1970,8 +1996,8 @@ def _lebt(pid):
 
 
 def _vorfahren(pid):
-    """Elternprozesse einer PID (ps). vollscan.sh schreibt die PID seiner bash-Hülle in die PID-Datei, in laeufe steht
-    die des Python-Scans darunter (Prüfung 20.10.: "vollscan" war deshalb nie wahr)."""
+    """Parent processes of a PID (ps). vollscan.sh writes the PID of its bash shell into the PID file, laeufe holds
+    the one of the Python scan below it (check 20.10.: "vollscan" was never true because of that)."""
     try:
         aus = subprocess.run(["ps", "-A", "-o", "pid=,ppid="], capture_output=True, text=True, timeout=5).stdout
     except (OSError, subprocess.SubprocessError):
@@ -1989,16 +2015,16 @@ def _vorfahren(pid):
 
 
 def fremder_scan():
-    """Läuft auf der Hauptdatenbank gerade ein gehoer-Scan, den nicht die Open Libary gestartet hat?
-    -> None oder {"seit", "dateien", "fertig", "auftraege", "rest_s", "vollscan"}; vollscan: vom Vollscan-Skript
-    gestartet (sonst ein anderer gehoer-Scan). Hält die Antwort 20 s. Fehler jeder Art heißen None: die Antwort hängt
-    an jeder ersten Suchseite, sie darf keine Suche scheitern lassen."""
+    """Is a gehoer scan running on the main database right now that Open Libary did not start?
+    -> None or {"seit", "dateien", "fertig", "auftraege", "rest_s", "vollscan"}; vollscan: started by the full scan
+    script (otherwise another gehoer scan). Keeps the answer for 20 s. Errors of any kind mean None: the answer hangs
+    on every first search page, it must not make any search fail."""
     if time.time() - _SCAN_STAND["zeit"] < 20:
         return _SCAN_STAND["wert"]
     try:
         wert = _fremder_scan()
     except Exception as e:
-        print(f"Scan-Stand nicht lesbar: {type(e).__name__}: {e}", flush=True)
+        print(f"Scan state not readable: {type(e).__name__}: {e}", flush=True)
         wert = None
     _SCAN_STAND.update(zeit=time.time(), wert=wert)
     return wert
@@ -2028,14 +2054,14 @@ def _fremder_scan():
                     fertig, offen, juengst = con.execute(
                         "SELECT sum(status='fertig'), sum(status<>'fertig'), sum(status='fertig' AND ende>=?) "
                         "FROM auftraege WHERE lauf=?", (jetzt - 900, lauf)).fetchone()
-                    tempo = (juengst or 0) / min(900.0, max(60.0, jetzt - (start or jetzt)))     # Aufträge je Sekunde
+                    tempo = (juengst or 0) / min(900.0, max(60.0, jetzt - (start or jetzt)))     # jobs per second
                     wert = {"seit": start, "dateien": gesamt, "fertig": fertig or 0, "auftraege": (fertig or 0) + (offen or 0),
                             "rest_s": round((offen or 0) / tempo) if tempo > 0 and offen else None,
                             "vollscan": bool(vollscan_pid) and (vollscan_pid == pid or vollscan_pid in _vorfahren(pid))}
             finally:
                 con.close()
         except sqlite3.Error:
-            pass        # gesperrt oder ohne Tabelle laeufe: dann zählt nur die PID-Datei
+            pass        # locked or without the table laeufe: then only the PID file counts
     if wert is None and vollscan_pid:
         wert = {"seit": None, "dateien": None, "fertig": None, "auftraege": None, "rest_s": None, "vollscan": True}
     return wert
@@ -2045,9 +2071,9 @@ _VOLLSCAN_FERTIG = {"zeit": 0.0, "wert": None}
 
 
 def vollscan_fertig():
-    """Ist ein Vollscan über den Bestand durchgelaufen (Lauf "fertig" mit mindestens halb so vielen Dateien wie der
-    Index)? -> Zeitpunkt des Endes oder None. Danach heißt ein leerer Wert "nicht messbar", nicht "noch nicht
-    gemessen" (Prüfung 20.10.). Hält die Antwort 60 s."""
+    """Has a full scan over the library run through (run "fertig" with at least half as many files as the index)?
+    -> time of the end or None. After that, an empty value means "not measurable", not "not analyzed yet" (check
+    20.10.). Keeps the answer for 60 s."""
     if time.time() - _VOLLSCAN_FERTIG["zeit"] < 60:
         return _VOLLSCAN_FERTIG["wert"]
     wert = None
@@ -2062,47 +2088,47 @@ def vollscan_fertig():
             finally:
                 con.close()
     except Exception as e:
-        print(f"Vollscan-Stand nicht lesbar: {type(e).__name__}: {e}", flush=True)
+        print(f"Full scan state not readable: {type(e).__name__}: {e}", flush=True)
     _VOLLSCAN_FERTIG.update(zeit=time.time(), wert=wert)
     return wert
 
 
 def _fehler_satz(text):
-    """gehoers Fehlertext in einem Satz für die Ladeliste."""
+    """gehoer's error text in one sentence for the download list (gehoer's own notes are German)."""
     t = re.sub(r"\s+", " ", text or "").strip()
     if t.startswith("Zeitüberschreitung"):
-        return "Messung abgebrochen: die Analyse hing zu lange."
+        return tx("Analysis stopped: it hung for too long.")
     if t.startswith("Analyse zweimal abgebrochen"):
-        return "Messung zweimal abgestürzt, die Datei ist vermutlich beschädigt."
+        return tx("Analysis crashed twice, the file is probably damaged.")
     if t.startswith(IN_ARBEIT):
-        return "Messung nicht abgeschlossen (gehoer wurde beendet)."
-    t = re.sub(r"^[A-Za-z]+(Error|Exception|Fehler): ", "", t)        # Klassenname vorn (LadeFehler: ...)
+        return tx("Analysis not finished (gehoer was stopped).")
+    t = re.sub(r"^[A-Za-z]+(Error|Exception|Fehler): ", "", t)        # class name in front (LadeFehler: ...)
     if re.match(r"(ffprobe kann die Datei nicht lesen|ffmpeg kann die Datei nicht dekodieren|keine Tonspur)", t):
-        return "Messung gescheitert: die Datei lässt sich nicht lesen (beschädigt oder kein Audio)."
-    t = re.sub(r":?\s*/[^:]*/[^/:]*$", "", t)                          # Pfad am Ende weglassen
-    return "Messung gescheitert: " + (t[:140].rstrip(" .:") or "ohne Angabe") + "."
+        return tx("Analysis failed: the file cannot be read (damaged or no audio).")
+    t = re.sub(r":?\s*/[^:]*/[^/:]*$", "", t)                          # drop the path at the end
+    return tx("Analysis failed: {grund}.", grund=t[:140].rstrip(" .:") or tx("no details"))
 
 
-LANG_TEXT = ("Über 5 Minuten lang: gehoer misst die Datei, sobald der laufende Scan (meist der Vollscan) durch ist; "
-             "beide zusammen brauchten zu viel Speicher.")
+LANG_TEXT = N_(
+    "Over 5 minutes long: gehoer analyzes the file once the running scan (usually the full scan) is done; both together needed too much memory.")
 
 
 class Messdienst:
-    """Ein Hintergrund-Faden misst nacheinander mit gehoer (nice -n 10, OPENLIBARY_MESS_PRIO): jede Datei, die
-    netz.py fertig geladen und einsortiert hat, und jede, für die jemand "Messen" drückt.
-    Ziel ist immer NETZ_DB (eigene Datei, keine Konkurrenz mit dem Vollscan), seit 20.10.2026 abends auch für "Messen"
-    auf eine Datei des Bestands. Vorher ging ein Klick in die Hauptdatenbank, solange dort kein anderer Scan lief. Die
-    Daten blieben heil (Test mit zwei Scans auf einer Test-Datenbank), aber gehoer bibliothek stand und vollscan.sh
-    --stand zeigen den jüngsten Lauf, also einen Ein-Datei-Lauf, und gehoer löscht beim nächsten Lauf die Aufträge
-    fertiger Läufe: ein Klick nach dem Vollscan hätte dessen Bilanz verdrängt. Dazu landeten Klicks auf geprüfte
-    Netz-Packs über den Pfad ohnehin in NETZ_DB, und ein Vollscan, der zwischen Klick und Start begann, bekam doch den
-    Ein-Datei-Lauf (Prüfung 20.10.). Den Bestand misst der Vollscan; ein Klick misst nur neu nach.
-    Ein gehoer-Aufruf misst alle wartenden Dateien (die Modelle laden je Prozess 30 bis 90 s), höchstens STAPEL
-    zugleich, Klicks auf "Messen" vor den Downloads. Dateien ab 5 min warten, solange ein anderer Scan läuft: gehoer
-    braucht dafür allein 7,8 bis 22 GB, der Vollscan mit 3 Arbeitern 13 bis 17,6 GB. Den Stand je Datei liest der Faden
-    alle 2 s aus der Datenbank: wartet, misst, gemessen oder der Fehler in einem Satz."""
+    """A background thread analyzes one file after another with gehoer (nice -n 10, OPENLIBARY_MESS_PRIO): every file
+    that netz.py has finished downloading and sorting in, and every one someone presses "Analyze" for.
+    The target is always NETZ_DB (a separate file, no competition with the full scan), since the evening of 20.10.2026
+    also for "Analyze" on a file of the library. Before, a click went into the main database as long as no other scan
+    ran there. The data stayed intact (test with two scans on a test database), but gehoer bibliothek stand and
+    vollscan.sh --stand show the latest run, so a one-file run, and gehoer deletes the jobs of finished runs on the
+    next run: a click after the full scan would have pushed out its summary. Also, clicks on checked Web packs landed
+    in NETZ_DB via their path anyway, and a full scan that began between click and start got the one-file run after
+    all (check 20.10.). The full scan analyzes the library; a click only re-analyzes.
+    One gehoer call analyzes all waiting files (the models load 30 to 90 s per process), at most STAPEL at a time,
+    clicks on "Analyze" before the downloads. Files from 5 min on wait while another scan runs: gehoer alone needs
+    7.8 to 22 GB for them, the full scan with 3 workers 13 to 17.6 GB. The thread reads the state per file from the
+    database every 2 s: waiting, analyzing, analyzed or the error in one sentence."""
     STAPEL = 25
-    BEHALTEN_S = 3 * 3600          # fertige Einträge so lange zeigen
+    BEHALTEN_S = 3 * 3600          # show finished entries this long
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -2110,7 +2136,7 @@ class Messdienst:
         self.stand = {}                                  # pfad -> {"status", "text", "ziel", "zeit", "v"}
         self.wecker = threading.Event()
         self._pids = set()
-        self._dauern = {}                                # pfad -> Sekunden (ffprobe, für Dateien außerhalb des Index)
+        self._dauern = {}                                # pfad -> seconds (ffprobe, for files outside the index)
         threading.Thread(target=self._lauf, daemon=True, name="messen").start()
 
     def eigene_pids(self):
@@ -2118,8 +2144,8 @@ class Messdienst:
             return set(self._pids)
 
     def dauer(self, p):
-        """Länge in Sekunden: aus dem Index, sonst ffprobe (frisch geladene Dateien stehen dort erst nach dem nächsten
-        Neuladen); None, wenn unbekannt."""
+        """Length in seconds: from the index, otherwise ffprobe (freshly downloaded files only appear there after the
+        next reload); None when unknown."""
         z = INDEX.nach_pfad.get(p) if INDEX else None
         if z is not None and z["dauer"] is not None:
             return z["dauer"]
@@ -2136,14 +2162,14 @@ class Messdienst:
         return self._dauern[p]
 
     def lang_zurueck(self, p, scan):
-        """Wartet die Datei, bis der fremde Scan durch ist (ab 5 min, siehe oben)?"""
+        """Does the file wait until the other scan is done (from 5 min on, see above)?"""
         return bool(scan) and (self.dauer(p) or 0) >= GEHOER_ALLEIN_S
 
     def dazu(self, pfade, klick=False):
-        """Dateien einreihen. klick: vom Knopf "Messen" (neu messen, vorne einreihen). -> Hinweis für die Oberfläche
-        ("" oder warum die Datei noch wartet)."""
+        """Queue files. klick: from the "Analyze" button (analyze again, queue in front). -> note for the interface
+        ("" or why the file is still waiting)."""
         hinweis = ""
-        scan = fremder_scan() if klick else None       # außerhalb der Sperre: fremder_scan fragt eigene_pids
+        scan = fremder_scan() if klick else None       # outside the lock: fremder_scan asks eigene_pids
         with self.lock:
             for p in pfade:
                 p = nfc(str(p))
@@ -2152,11 +2178,11 @@ class Messdienst:
                 if p in self.warteschlange and not klick:
                     continue
                 self.warteschlange[p] = {"db": NETZ_DB, "neu": klick}
-                if klick:     # ein Klick misst neu und kommt vor die Downloads
+                if klick:     # a click analyzes again and comes before the downloads
                     self.warteschlange.move_to_end(p, last=False)
                 self.stand[p] = {"status": "wartet", "text": "", "ziel": "netz", "zeit": time.time()}
         if klick and any(self.lang_zurueck(nfc(str(p)), scan) for p in pfade):
-            hinweis = LANG_TEXT
+            hinweis = tx(LANG_TEXT)
         self.wecker.set()
         return hinweis
 
@@ -2170,26 +2196,25 @@ class Messdienst:
             return {p: dict(self.stand[p]) for p in pfade if p in self.stand}
 
     def _setzen(self, p, status, text="", im_index=False):
-        """v: die Oberfläche frischt die Zeile auf, sobald index_version größer ist als v. Das ist der zuletzt
-        begonnene Ladelauf (INDEX.gestartet): ein Lauf, der schon vor dem Ende der Messung las, hat die neuen Werte noch
-        nicht (Prüfung 20.10.: sonst kam die Zeile mit altem Stand und wurde danach vergessen). im_index: Werte sind
-        schon drin."""
+        """v: the interface refreshes the row once index_version is greater than v. That is the last started load
+        (INDEX.gestartet): a run that read before the analysis ended does not have the new values yet (check 20.10.:
+        otherwise the row came with the old state and was then forgotten). im_index: the values are already in."""
         with self.lock:
             if p in self.stand:
                 v = (INDEX.version - 1 if im_index else INDEX.gestartet) if INDEX else 0
                 self.stand[p].update(status=status, text=text, zeit=time.time(), v=v)
 
     def _stapel(self):
-        """Die nächsten Dateien mit gleicher Art (neu oder nicht), höchstens STAPEL; lange Dateien bleiben liegen,
-        solange ein anderer Scan läuft (dann mit Hinweis)."""
-        scan = fremder_scan()        # außerhalb der Sperre: fremder_scan fragt eigene_pids
+        """The next files of the same kind (new or not), at most STAPEL; long files stay put while another scan runs
+        (then with a note)."""
+        scan = fremder_scan()        # outside the lock: fremder_scan asks eigene_pids
         with self.lock:
             offen = list(self.warteschlange.items())
-        zurueck = {p for p, a in offen if self.lang_zurueck(p, scan)}     # ffprobe außerhalb der Sperre
+        zurueck = {p for p, a in offen if self.lang_zurueck(p, scan)}     # ffprobe outside the lock
         with self.lock:
             for p in zurueck:
                 if p in self.stand and self.stand[p]["status"] == "wartet":
-                    self.stand[p]["text"] = LANG_TEXT
+                    self.stand[p]["text"] = tx(LANG_TEXT)
             frei = [(p, a) for p, a in self.warteschlange.items() if p not in zurueck]
             if not frei:
                 return None
@@ -2208,9 +2233,9 @@ class Messdienst:
         while True:
             self.wecker.wait(10)
             self.wecker.clear()
-            # Downloads kommen kurz nacheinander (Test 20.10.: drei Sounds in 6 s, die erste Datei startete gehoer
-            # allein, die übrigen luden die Modelle ein zweites Mal): sammeln, bis 4 s nichts kommt, höchstens 30 s;
-            # ein Klick auf "Messen" wartet nicht
+            # Downloads come shortly one after another (test 20.10.: three sounds in 6 s, the first file started gehoer
+            # alone, the others loaded the models a second time): collect until nothing comes for 4 s, at most 30 s;
+            # a click on "Analyze" does not wait
             beginn = time.time()
             while not self._klick_wartet() and time.time() - beginn < 30 and self.wecker.wait(4):
                 self.wecker.clear()
@@ -2221,18 +2246,18 @@ class Messdienst:
                 gerechnet = True
                 try:
                     gerechnet = self._messen(*s)
-                except Exception as e:     # der Faden darf nie sterben
+                except Exception as e:     # the thread must never die
                     for p in s[2]:
-                        self._setzen(p, "fehler", f"Messung gescheitert: {type(e).__name__}: {e}"[:200])
+                        self._setzen(p, "fehler", tx("Analysis failed: {grund}", grund=f"{type(e).__name__}: {e}")[:200])
                 if gerechnet:
                     try:
-                        INDEX.laden()      # neue Messwerte sofort in der Liste, nicht erst nach einer Minute
+                        INDEX.laden()      # new analysis values in the list at once, not only after a minute
                     except Exception as e:
-                        print(f"Index nach dem Messen nicht neu geladen: {e}", flush=True)
+                        print(f"Index not reloaded after the analysis: {e}", flush=True)
 
     @staticmethod
     def _zeilen(db, pfade):
-        """{pfad: (analysiert_am, fehler, groesse, mtime)} der Pfade in einer gehoer-Datenbank (lesend)."""
+        """{pfad: (analysiert_am, fehler, groesse, mtime)} of the paths in a gehoer database (read only)."""
         if not db.is_file():
             return {}
         try:
@@ -2252,8 +2277,8 @@ class Messdienst:
             return {}
 
     def _messen(self, db, neu, pfade):
-        """Ein gehoer-Aufruf für die Pfade. -> True, wenn gehoer lief (dann lädt der Index neu)."""
-        # schon gemessen (gleiche Größe und Zeit, ohne Fehler, in einer der beiden Datenbanken): ohne gehoer fertig
+        """One gehoer call for the paths. -> True when gehoer ran (then the index reloads)."""
+        # already analyzed (same size and time, without an error, in one of the two databases): done without gehoer
         if not neu:
             rest = []
             bekannt = {**self._zeilen(GEHOER_DB, pfade), **{p: r for p, r in self._zeilen(NETZ_DB, pfade).items() if not r[1]}}
@@ -2262,7 +2287,7 @@ class Messdienst:
                 try:
                     st = os.stat(p)
                 except OSError:
-                    self._setzen(p, "fehler", "Datei fehlt auf der Platte.")
+                    self._setzen(p, "fehler", tx("File is missing on disk."))
                     continue
                 if r and not r[1] and r[2] == st.st_size and abs((r[3] or 0) - st.st_mtime) < 1e-3:
                     self._setzen(p, "gemessen", im_index=True)
@@ -2273,21 +2298,21 @@ class Messdienst:
             return False
         if not (os.access(GEHOER, os.X_OK) or shutil.which(GEHOER)):
             for p in pfade:
-                self._setzen(p, "fehler", f"gehoer ist nicht installiert ({GEHOER}).")
+                self._setzen(p, "fehler", tx("gehoer is not installed ({pfad}).", pfad=GEHOER))
             return False
         vorher = self._zeilen(db, pfade)
         liste = tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="openlibary-messen-", delete=False, encoding="utf-8")
         with liste:
             liste.write("\n".join(pfade) + "\n")
-        self.liste_jetzt = liste.name          # räumt beim Beenden des Servers mit auf (main, beenden)
+        self.liste_jetzt = liste.name          # cleaned up when the server exits (main, beenden)
         befehl = MESS_PRIO + [GEHOER, "bibliothek", "scan", "--liste", liste.name, "--arbeiter", "1", "--db", str(db)]
         if neu:
             befehl.append("--neu")
         ausgabe = tempfile.TemporaryFile()
-        # Notbremse erst nach gehoers eigenem Wächter (je Datei 120 s plus 4 s je Sekunde Audio, die erste 600 s länger)
-        # plus 10 min Reserve: dann vermerkt gehoer die Zeitüberschreitung selbst, und ein neuer Versuch überspringt die
-        # Datei. Vorher galt 600 + 120 s je Datei, die Open Libary brach also immer zuerst ab, gehoer löschte seinen
-        # Vermerk, und die Datei kam bei jedem Start wieder dran (Prüfung 20.10.)
+        # Emergency brake only after gehoer's own watchdog (per file 120 s plus 4 s per second of audio, the first one
+        # 600 s longer) plus 10 min of reserve: then gehoer notes the timeout itself, and a new attempt skips the
+        # file. Before, 600 + 120 s per file applied, so Open Libary always stopped first, gehoer deleted its note,
+        # and the file came up again on every start (check 20.10.)
         frist = time.time() + GEHOER_ZUSCHLAG_S + 600 + sum(
             GEHOER_FRIST_S + GEHOER_FRIST_JE_S * (self.dauer(p) or 60.0) for p in pfade)
         zu_lange = False
@@ -2305,12 +2330,12 @@ class Messdienst:
                     self._abgleichen(db, pfade, vorher, None)
                     if time.time() > frist:
                         zu_lange = True
-                        proc.terminate()      # gehoer hält sauber an und vermerkt die laufende Datei
+                        proc.terminate()      # gehoer stops cleanly and notes the running file
                         try:
                             proc.wait(timeout=30)
                         except subprocess.TimeoutExpired:
                             proc.kill()
-                            proc.wait()       # sonst bleibt ein Zombie, und os.kill(pid, 0) hält ihn für lebendig
+                            proc.wait()       # otherwise a zombie stays, and os.kill(pid, 0) takes it for alive
                         break
             finally:
                 with self.lock:
@@ -2318,26 +2343,26 @@ class Messdienst:
             ausgabe.seek(0)
             text = ausgabe.read().decode("utf-8", errors="replace")
         except OSError as e:
-            text = f"gehoer startet nicht: {e}"
+            text = f"gehoer did not start: {e}"
         finally:
             ausgabe.close()
             try:
                 os.unlink(liste.name)
             except OSError:
                 pass
-        if zu_lange:
+        if zu_lange:     # same first word as gehoer's own timeout note (matched below)
             text += "\nZeitüberschreitung: gehoer brauchte zu lange und wurde beendet"
         self._abgleichen(db, pfade, vorher, text)
         return True
 
     def _abgleichen(self, db, pfade, vorher, ende_text):
-        """Stand je Datei aus der Datenbank: eine neue Zeile ohne Fehler heißt gemessen, mit Fehler den Fehler; noch
-        "in Arbeit" oder unverändert heißt misst. Am Ende (ende_text ist gehoers Ausgabe, sonst None): unverändert und
-        fehlerfrei heißt gemessen (gehoer hatte die Datei schon), ohne Zeile der Grund aus der Ausgabe."""
+        """State per file from the database: a new row without an error means analyzed, with an error the error; still
+        "in progress" or unchanged means analyzing. At the end (ende_text is gehoer's output, otherwise None): unchanged
+        and error-free means analyzed (gehoer already had the file), without a row the reason from the output."""
         ende = ende_text is not None
         jetzt = self._zeilen(db, pfade)
         zeilen = [z.strip() for z in (ende_text or "").splitlines() if z.strip()]
-        zu_lange = any(z.startswith("Zeitüberschreitung") for z in zeilen)    # Notbremse der Open Libary
+        zu_lange = any(z.startswith("Zeitüberschreitung") for z in zeilen)    # Open Libary's emergency brake
         for p in pfade:
             r = jetzt.get(p)
             if r is not None and (r[1] or "").startswith(IN_ARBEIT):
@@ -2356,54 +2381,54 @@ class Messdienst:
 
     @staticmethod
     def _ohne_zeile(p, zeilen):
-        """Satz für eine Datei, zu der gehoer keine Zeile schrieb. Vorher stand dort gehoers letzte Ausgabezeile,
-        etwa "Messung gescheitert: Fertig: 0 analysiert, 0 schon erfasst, ... 1 s." (Prüfung 20.10.)."""
+        """Sentence for a file gehoer wrote no row for. Before, gehoer's last output line stood there, e.g.
+        "Messung gescheitert: Fertig: 0 analysiert, 0 schon erfasst, ... 1 s." (check 20.10.)."""
         if not os.path.isfile(p):
-            return "Datei fehlt auf der Platte."
+            return tx("File is missing on disk.")
         if any(z.startswith("Zeitüberschreitung") for z in zeilen):
             return _fehler_satz("Zeitüberschreitung")
-        if any(z.startswith("gehoer startet nicht") for z in zeilen):
-            return "Messung gescheitert: gehoer ließ sich nicht starten."
+        if any(z.startswith("gehoer did not start") for z in zeilen):
+            return tx("Analysis failed: gehoer could not be started.")
         eigene = next((z for z in zeilen if p in z and not z.startswith(("Fertig", "Abgebrochen"))), None)
-        if eigene:      # gehoer nennt den Pfad, wenn er die Datei nicht lesen konnte: der Grund steht dahinter
+        if eigene:      # gehoer names the path when it could not read the file: the reason follows it
             vor, _, nach = eigene.partition(p)
             grund = nach.strip(" :.-") or vor.strip(" :.-")
             if grund:
                 return _fehler_satz(grund)
-        return "Messung gescheitert: gehoer hat die Datei nicht erfasst."
+        return tx("Analysis failed: gehoer did not record the file.")
 
     def nachholen(self):
-        """Beim Start: Netz-Downloads aus zusaetze.csv, die in keiner der beiden Datenbanken stehen (geladen vor dem
-        Ausbau oder während der Server nicht lief), kommen in die Warteschlange. Steht dort schon eine Zeile, auch mit
-        Fehler, bleibt die Datei liegen (neu messen geht über den Knopf)."""
+        """At start: Web downloads from zusaetze.csv that are in neither database (downloaded before this existed or
+        while the server was not running) go into the queue. If a row is already there, even with an error, the file
+        stays put (analyzing again goes through the button)."""
         pfade = [z["pfad"] for z in INDEX.zeilen if z["herkunft"] == "openlibary" and not z["gemessen"]
                  and os.path.isfile(z["pfad"])]
         if pfade:
             bekannt = set(self._zeilen(GEHOER_DB, pfade)) | set(self._zeilen(NETZ_DB, pfade))
             pfade = [p for p in pfade if p not in bekannt]
         if pfade:
-            print(f"Messen: {len(pfade)} Netz-Downloads ohne Messung in die Warteschlange", flush=True)
+            print(f"Analysis: {len(pfade)} Web downloads without analysis put into the queue", flush=True)
             self.dazu(pfade)
 
 
 MESSDIENST = None
 ORDNER = None
-LEICHT = None                # leichte Messung (leicht.py), None vor dem Start
-KLANG = None                 # Klang-Fingerabdruck (klangnaehe.py), None ohne gehoer-Umgebung
-ORDNER_MESSEN_MAX = 300      # neue Dateien eines Ordners, die gehoer von selbst misst; mehr über Auswahl und „Messen“
-ORDNER_TAKT_S = 3600         # eigene Ordner stündlich neu einlesen (neue und gelöschte Dateien)
+LEICHT = None                # light analysis (leicht.py), None before the start
+KLANG = None                 # sound fingerprint (klangnaehe.py), None without the gehoer environment
+ORDNER_MESSEN_MAX = 300      # new files of a folder that gehoer analyzes on its own; more through selection and "Analyze"
+ORDNER_TAKT_S = 3600         # rescan your own folders every hour (new and deleted files)
 
 
 def werkzeuge():
-    """Was auf diesem Rechner da ist; für die Einstellungen (Einrichten für andere)."""
+    """What exists on this computer; for Settings (setting it up for others)."""
     return {"ffmpeg": os.path.exists(FFMPEG), "ffprobe": os.path.exists(netz.KONFIG["ffprobe"] or ""),
             "rubberband": os.path.exists(RUBBERBAND), "gehoer": os.path.exists(GEHOER),
             "klang": bool(KLANG and KLANG.verfuegbar() and KLANG.zahl()), "leicht": bool(LEICHT and LEICHT.da())}
 
 
 def leicht_befehl():
-    """Leichte Messung: die Python-Fassung (leichtmessen.py), wo numpy und soundfile da sind (fertige Apps auf allen
-    Systemen, gehoer-Umgebung auf Jeremias' Mac), sonst auf dem Mac die Swift-Fassung. -> Befehl oder None."""
+    """Light analysis: the Python version (leichtmessen.py) where numpy and soundfile exist (packaged apps on all
+    systems, the gehoer environment on the author's Mac), otherwise on the Mac the Swift version. -> command or None."""
     pythons = [os.environ.get("OPENLIBARY_LEICHT_PY"), sys.executable, str(GEHOER_PY)]
     for py in pythons:
         if not py or not os.path.exists(py):
@@ -2421,7 +2446,7 @@ def leicht_befehl():
 
 
 def leicht_kandidaten():
-    """Zeilen ohne gehoer-Messung: Tempo, Grundton und grober Klang-Fingerabdruck (für Ähnliche ohne gehoer)."""
+    """Rows without a gehoer analysis: tempo, root note and rough sound fingerprint (for Similar without gehoer)."""
     return [z["pfad"] for z in INDEX.zeilen if not z["gemessen"] and not z["ist_kopie"]]
 
 
@@ -2434,9 +2459,9 @@ def ordner_bekannt():
 
 
 def ordner_eingelesen(neue):
-    """Nach dem Einlesen: Index sofort neu, dann gehoer und Klang-Fingerabdruck für das Neue (nur wenn da)."""
+    """After scanning: index at once, then gehoer and sound fingerprint for what is new (only when available)."""
     INDEX.laden()
-    neue = [p for p in neue if p in INDEX.nach_pfad]      # Renders und Ausgelassenes nicht messen
+    neue = [p for p in neue if p in INDEX.nach_pfad]      # do not analyze renders and skipped files
     if neue and LEICHT:
         LEICHT.wecken()
     if neue and os.path.exists(GEHOER):
@@ -2447,8 +2472,8 @@ def ordner_eingelesen(neue):
 
 
 def fertig_geladen(pfade):
-    """netz.py hat Dateien fertig einsortiert: gehoer misst, der Klang-Fingerabdruck kommt dazu. Ohne gehoer (andere
-    Rechner) wird nichts eingereiht: vorher stand bei jedem Download „gehoer ist nicht installiert“ (Nutzertest 2)."""
+    """netz.py has finished sorting in files: gehoer analyzes, the sound fingerprint is added. Without gehoer (other
+    computers) nothing is queued: before, every download showed "gehoer is not installed"."""
     if os.path.exists(GEHOER):
         MESSDIENST.dazu(pfade)
     elif LEICHT:
@@ -2465,7 +2490,7 @@ def ordner_takt():
 
 
 def netz_geprueft():
-    """Die am 17.10.2026 an der Originalquelle gegengeprüften Packs (netz-urteile.tsv), mit Ordner auf der Platte."""
+    """The packs checked against the original source on 17.10.2026 (netz-urteile.tsv), with a folder on disk."""
     zaehler = collections.Counter(z["pack"] for z in INDEX.zeilen)
     aus = []
     for pack, r in INDEX.urteile.items():
@@ -2482,8 +2507,8 @@ _WANDEL_LOCKS = collections.defaultdict(threading.Lock)
 
 
 def gewandelt(pfad):
-    """WAV-Kopie für Formate, die der Browser nicht spielt (AIFF, Ogg im WAV-Container der FL-Packs). Eine Sperre je
-    Datei: vorher schrieben gleichzeitige Abrufe in dieselbe .teil-Datei (5 von 6 endeten mit Fehler 500)."""
+    """WAV copy for formats the browser does not play (AIFF, Ogg in the WAV container of the FL packs). One lock per
+    file: before, concurrent requests wrote into the same .teil file (5 of 6 ended with error 500)."""
     WANDEL_CACHE.mkdir(exist_ok=True)
     st = os.stat(pfad)
     schluessel = hashlib.md5(f"{pfad}|{st.st_size}|{st.st_mtime}".encode()).hexdigest()
@@ -2493,7 +2518,7 @@ def gewandelt(pfad):
             os.utime(ziel)
             return str(ziel)
         tmp = WANDEL_CACHE / f"{schluessel}.{os.getpid()}.{threading.get_ident()}.teil.wav"
-        # 03.11.2026: AIFF ohne ffmpeg (Windows und Linux haben es meist nicht; bitgleich mit ffmpeg geprüft)
+        # AIFF without ffmpeg (Windows and Linux mostly lack it; checked bit-identical with ffmpeg)
         if pfad.lower().endswith((".aif", ".aiff", ".aifc")):
             try:
                 audioform.aiff_zu_wav(pfad, tmp)
@@ -2502,7 +2527,7 @@ def gewandelt(pfad):
                 return str(ziel)
             except (ValueError, OSError, struct_fehler):
                 pass
-        if not os.path.exists(FFMPEG):      # ohne ffmpeg: soundfile, wenn da (fertige Apps)
+        if not os.path.exists(FFMPEG):      # without ffmpeg: soundfile, when available (packaged apps)
             audioform.wav_aus(pfad, str(tmp))
             os.replace(tmp, ziel)
             _wandel_aufraeumen()
@@ -2510,11 +2535,11 @@ def gewandelt(pfad):
         r = subprocess.run([FFMPEG, "-v", "error", "-y", "-i", pfad, "-c:a", "pcm_s16le", str(tmp)],
                            capture_output=True, timeout=120, **plattform.hilfsprozess_args())
         if r.returncode != 0:
-            # Ogg Vorbis im WAV-Container (rund 3.000 Dateien der FL-Packs): ffmpeg findet keinen Decoder. Den Ogg-Strom
-            # löst audioform heraus (nur Standardbibliothek; vorher über die gehoer-Umgebung, die Freunde nicht haben).
+            # Ogg Vorbis in the WAV container (around 3,000 files of the FL packs): ffmpeg finds no decoder. audioform
+            # pulls out the Ogg stream (standard library only; before via the gehoer environment, which friends lack).
             ogg = audioform.ogg_in_wav(pfad)
             if not ogg:
-                raise RuntimeError("Format nicht lesbar: " + r.stderr.decode(errors="replace")[-200:])
+                raise RuntimeError(tx("Format not readable: {detail}", detail=r.stderr.decode(errors="replace")[-200:]))
             subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "ogg", "-i", "pipe:0", "-c:a", "pcm_s16le", str(tmp)],
                            input=ogg, check=True, timeout=120, **plattform.hilfsprozess_args())
         os.replace(tmp, ziel)
@@ -2527,8 +2552,8 @@ struct_fehler = _struct.error
 
 
 def als_wav(pfad):
-    """WAV-Fassung zum Ziehen (DAWs ohne OGG, FLAC oder MP3: Logic, Pro Tools). Liegt dauerhaft unter den Renders
-    („als WAV“), weil ein DAW-Projekt auf die Datei zeigt; gleiche Quelle, gleicher Stand: dieselbe Datei."""
+    """WAV version for dragging (DAWs without OGG, FLAC or MP3: Logic, Pro Tools). Stays under the renders
+    ("als WAV"), because a DAW project points to the file; same source, same state: the same file."""
     st = os.stat(pfad)
     kennung = hashlib.md5(f"{pfad}|{st.st_size}|{st.st_mtime}".encode()).hexdigest()[:8]
     ordner = RENDER_ZIEL / "als WAV"
@@ -2553,22 +2578,22 @@ def _wandel_aufraeumen():
             pass
 
 
-# ================================================================ Fassungen (Paket 3): im Projekt vorhören und ziehen
-# GET /api/fassung rechnet eine angepasste Fassung als WAV: Tempo mit rubberband (--time), Tonhöhe mit rubberband
-# (--pitch, bei Vocals mit Formanterhalt), Varispeed mit ffmpeg (asetrate + aresample, Tempo und Tonhöhe zusammen wie am
-# Plattenspieler). Die Datei landet in RENDER_ZIEL und ist genau die, die die App nach FL zieht. Gleiche Anfrage noch
-# einmal liefert die vorhandene Datei sofort (Schlüssel: Pfad, Größe, Änderungszeit, Faktor, Halbtöne, Formant, Varispeed;
-# Liste in .renders.json im Ordner). RENDER_ZIEL ist beim Bibliotheksscan ausgenommen (bestand_messen.py und Index).
+# ================================================================ Versions: preview and drag in the project
+# GET /api/fassung renders an adjusted version as WAV: tempo with rubberband (--time), pitch with rubberband
+# (--pitch, with formant preservation for vocals), varispeed with ffmpeg (asetrate + aresample, tempo and pitch together
+# like on a turntable). The file lands in RENDER_ZIEL and is exactly the one the app drags into FL. The same request
+# again returns the existing file at once (key: path, size, modification time, factor, semitones, formant, varispeed;
+# list in .renders.json in the folder). RENDER_ZIEL is excluded from the library scan (bestand_messen.py and index).
 RENDER_ZIEL = Path(os.environ.get("OPENLIBARY_RENDERS", MUSIK / "Samples/Open Libary Renders" if _EIGENE_ABLAGE
                                    else ABLAGE / "Renders"))
-RUBBERBAND = os.environ.get("OPENLIBARY_RUBBERBAND") or plattform.werkzeug("rubberband") or "rubberband"   # Umgebung: Fehlerfälle prüfen
-FASSUNG_PARAMETER = frozenset(["pfad", "bpm", "ht", "formant", "vari", "seite", "nr", "start", "ende"])   # start, ende: Paket 10
+RUBBERBAND = os.environ.get("OPENLIBARY_RUBBERBAND") or plattform.werkzeug("rubberband") or "rubberband"   # environment: to test error cases
+FASSUNG_PARAMETER = frozenset(["pfad", "bpm", "ht", "formant", "vari", "seite", "nr", "start", "ende"])   # start, ende: region
 RENDER_GLEICHZEITIG = 2
 _RENDER_PLAETZE = threading.BoundedSemaphore(RENDER_GLEICHZEITIG)
 _RENDER_LISTE_LOCK = threading.Lock()
-_RENDER_NEUESTE = {}        # Seite -> höchste Anfragenummer; ältere Anfragen derselben Seite fallen weg (auch laufende)
-_RENDER_ANGEFRAGT = {}      # (Seite, Schlüssel) -> höchste Nummer, die diese Fassung angefragt hat (Pfeil auf die
-                            # vorausgerechnete Zeile: die neue Anfrage übernimmt den laufenden Render, statt ihn abzubrechen)
+_RENDER_NEUESTE = {}        # page -> highest request number; older requests of the same page drop out (running ones too)
+_RENDER_ANGEFRAGT = {}      # (page, key) -> highest number that requested this version (arrow onto the pre-rendered
+                            # row: the new request takes over the running render instead of stopping it)
 
 
 class FassungVerworfen(Exception):
@@ -2604,7 +2629,7 @@ def _render_liste_schreiben(d):
 
 
 def render_bekannt(pfad):
-    """Nur fertige Renders aus der eigenen Liste dürfen über /audio abgespielt werden."""
+    """Only finished renders from our own list may be played via /audio."""
     pfad = nfc(pfad)
     if os.path.dirname(pfad) != nfc(str(RENDER_ZIEL)) or not os.path.isfile(pfad):
         return False
@@ -2613,15 +2638,15 @@ def render_bekannt(pfad):
 
 
 def _wav_rate(pfad):
-    """Abtastrate aus dem fmt-Block einer WAV (auch WAVE_FORMAT_EXTENSIBLE, das wave in Python 3.9 nicht liest)."""
+    """Sample rate from the fmt chunk of a WAV (also WAVE_FORMAT_EXTENSIBLE, which wave in Python 3.9 does not read)."""
     with open(pfad, "rb") as f:
         kopf = f.read(12)
         if kopf[:4] != b"RIFF" or kopf[8:12] != b"WAVE":
-            raise FassungFehler(500, "Zwischendatei ist keine WAV")
+            raise FassungFehler(500, tx("Intermediate file is not a WAV"))
         while True:
             c = f.read(8)
             if len(c) < 8:
-                raise FassungFehler(500, "WAV ohne fmt-Block")
+                raise FassungFehler(500, tx("WAV without an fmt chunk"))
             n = int.from_bytes(c[4:8], "little")
             if c[:4] == b"fmt ":
                 return int.from_bytes(f.read(n)[4:8], "little")
@@ -2635,12 +2660,12 @@ def _ton_name(ton, modus, ht):
 
 
 def _bpm_text(b):
-    return str(int(round(b))) if abs(b - round(b)) < 0.05 else f"{b:.1f}"      # wie im Fuß: 145.9
+    return str(int(round(b))) if abs(b - round(b)) < 0.05 else f"{b:.1f}"      # as in the player bar: 145.9
 
 
 def _render_ziel_name(stamm, teile, schluessel, liste, endung=""):
-    """<Originalname>_140_Fm.wav; trägt eine andere Fassung schon diesen Namen, dann zuerst mit der Endung der Quelle
-    ("… (mp3).wav", Cymatics legt dieselbe Datei als WAV und MP3 ab), sonst (2), (3) (gleicher Name in zwei Packs)."""
+    """<original name>_140_Fm.wav; if another version already carries this name, then first with the extension of the
+    source ("… (mp3).wav", Cymatics ships the same file as WAV and MP3), otherwise (2), (3) (same name in two packs)."""
     grund = re.sub(r'[/:\x00]', "_", stamm + "".join("_" + t for t in teile))
     belegt = {e.get("datei") for k, e in liste.items() if k != schluessel}
     name, n = grund + ".wav", 2
@@ -2652,8 +2677,8 @@ def _render_ziel_name(stamm, teile, schluessel, liste, endung=""):
 
 
 def schnitt_name(a, b, bpm):
-    """Paket 10: Namensteil eines Ausschnitts. Auf Takten (4/4 ab Dateianfang, je 1 ms Spiel) "T1-2" bzw. "T3",
-    sonst die Anfangszeit "0m42s"."""
+    """Name part of a region. On bars (4/4 from the start of the file, 1 ms of play each) "T1-2" or "T3", otherwise
+    the start time "0m42s"."""
     if bpm:
         takt = 240 / bpm
         ta, tb = a / takt, b / takt
@@ -2665,64 +2690,64 @@ def schnitt_name(a, b, bpm):
 
 def fassung_rechnen(p):
     """-> {"pfad", "url", "datei", "neu", "sekunden"}. Fehleingabe (400), FassungFehler (403, 404, 503, 500),
-    FassungVerworfen (Antwort 200 mit "verworfen": eine neuere Anfrage derselben Seite kam dazu, solange diese noch wartete)."""
+    FassungVerworfen (answer 200 with "verworfen": a newer request of the same page came in while this one was still waiting)."""
     def eins(k):
         return (p.get(k) or [""])[0]
     pfad = nfc(eins("pfad"))
     z = INDEX.nach_pfad.get(pfad)
     if z is None:
-        raise FassungFehler(403, "Pfad steht nicht im Index")
+        raise FassungFehler(403, tx("path is not in the index"))
     if not os.path.isfile(pfad):
-        raise FassungFehler(404, "Datei fehlt auf der Platte")
+        raise FassungFehler(404, tx("File is missing on disk"))
     try:
         ht = int(eins("ht") or "0")
     except ValueError:
-        raise Fehleingabe("ht muss eine ganze Zahl sein")
+        raise Fehleingabe(tx("ht must be a whole number"))
     if not -12 <= ht <= 12:
-        raise Fehleingabe("ht geht von -12 bis 12")
+        raise Fehleingabe(tx("ht goes from -12 to 12"))
     vari, formant = eins("vari") == "1", eins("formant") == "1"
     ziel_bpm = zahl(eins("bpm")) if eins("bpm") else None
     if eins("bpm") and ziel_bpm is None:
-        raise Fehleingabe("bpm muss eine Zahl sein")
+        raise Fehleingabe(tx("bpm must be a number"))
     if ziel_bpm is not None and not 20 <= ziel_bpm <= 400:
-        raise Fehleingabe("bpm geht von 20 bis 400")
+        raise Fehleingabe(tx("bpm goes from 20 to 400"))
     if vari and ziel_bpm is not None:
-        raise Fehleingabe("Varispeed bestimmt das Tempo selbst, bpm weglassen")
-    faktor = 1.0                                  # Dauer neu zu Dauer alt
+        raise Fehleingabe(tx("Varispeed sets the tempo itself, leave out bpm"))
+    faktor = 1.0                                  # new length to old length
     if ziel_bpm is not None:
         if not z.get("bpm"):
-            raise Fehleingabe("ohne BPM, nicht gestreckt")
+            raise Fehleingabe(tx("no BPM, not stretched"))
         faktor = z["bpm"] / ziel_bpm
         if not 0.5 <= faktor <= 2.0:
-            raise Fehleingabe("Strecken nur bis zum halben oder doppelten Tempo")
+            raise Fehleingabe(tx("Stretching only up to half or double the tempo"))
         if abs(faktor - 1) < 1e-4:
             faktor, ziel_bpm = 1.0, None
     if vari and ht == 0:
         vari = False
-    # Paket 10: Ausschnitt in Sekunden der Originaldatei; gerechnet wird nur er (danach gestreckt oder transponiert)
+    # Region in seconds of the original file; only that part is rendered (then stretched or transposed)
     schnitt = None
     if eins("start") or eins("ende"):
         a, b = zahl(eins("start")), zahl(eins("ende"))
         if a is None or b is None:
-            raise Fehleingabe("start und ende müssen Zahlen sein")
+            raise Fehleingabe(tx("start and ende must be numbers"))
         if a < 0 or b - a < 0.05:
-            raise Fehleingabe("Ausschnitt: start ab 0, mindestens 50 ms lang")
+            raise Fehleingabe(tx("Region: start from 0, at least 50 ms long"))
         if z.get("dauer") and b > z["dauer"] + 0.05:
-            raise Fehleingabe("Ausschnitt geht über das Ende der Datei")
+            raise Fehleingabe(tx("Region goes past the end of the file"))
         schnitt = (a, b)
     if faktor == 1.0 and ht == 0 and schnitt is None:
-        raise Fehleingabe("nichts zu rechnen: Tempo und Tonhöhe bleiben")
+        raise Fehleingabe(tx("nothing to render: tempo and pitch stay the same"))
     seite, nr = eins("seite")[:40], 0
     if eins("nr"):
         try:
             nr = int(eins("nr"))
         except ValueError:
-            raise Fehleingabe("nr muss eine ganze Zahl sein")
+            raise Fehleingabe(tx("nr must be a whole number"))
     st = os.stat(pfad)
     schluessel = hashlib.sha1(f"{pfad}|{st.st_size}|{st.st_mtime}|{faktor:.6f}|{ht}|{int(formant)}|{int(vari)}|1"
                               .encode() + (f"|{schnitt[0]:.6f}-{schnitt[1]:.6f}".encode() if schnitt else b"")
                               ).hexdigest()[:20]
-    # Name: Tempo und Tonart, die die Fassung jetzt hat; Varispeed hängt _vari an
+    # Name: tempo and key the version has now; varispeed appends _vari
     rate = 2 ** (ht / 12) if vari else 1.0
     tempo = ziel_bpm if ziel_bpm is not None else (z["bpm"] * rate if z.get("bpm") else None)
     teile = []
@@ -2735,7 +2760,7 @@ def fassung_rechnen(p):
         teile.append(f"{ht:+d}")
     if vari:
         teile.append("vari")
-    if schnitt:     # Paket 10: _T1-2 (auf Takten der Originaldatei, 4/4 ab Dateianfang) oder _0m42s (frei)
+    if schnitt:     # _T1-2 (on bars of the original file, 4/4 from the start of the file) or _0m42s (free)
         if faktor == 1.0 and ht == 0:
             teile = []
         teile.insert(0, schnitt_name(schnitt[0], schnitt[1], z.get("bpm")))
@@ -2755,28 +2780,28 @@ def fassung_rechnen(p):
     e = vorhanden()
     if e:
         return fertig(e, False, 0)
-    nur_schnitt = faktor == 1.0 and ht == 0          # Paket 10: nur ausschneiden, das kann ffmpeg allein
+    nur_schnitt = faktor == 1.0 and ht == 0          # only cutting, ffmpeg can do that alone
     if not os.path.exists(RUBBERBAND) and not (vari and faktor == 1.0) and not nur_schnitt:
-        raise FassungFehler(503, f"rubberband fehlt ({RUBBERBAND}), spielt Original")
+        raise FassungFehler(503, tx("rubberband is missing ({pfad}), playing original", pfad=RUBBERBAND))
     if seite:
         with _RENDER_LISTE_LOCK:
             _RENDER_NEUESTE[seite] = max(nr, _RENDER_NEUESTE.get(seite, nr))
             k = (seite, schluessel)
             _RENDER_ANGEFRAGT[k] = max(nr, _RENDER_ANGEFRAGT.get(k, nr))
-            if len(_RENDER_ANGEFRAGT) > 500:       # Erledigtes aufräumen
+            if len(_RENDER_ANGEFRAGT) > 500:       # clean up what is done
                 for a in [a for a, n in _RENDER_ANGEFRAGT.items() if n < _RENDER_NEUESTE.get(a[0], 0)]:
                     del _RENDER_ANGEFRAGT[a]
 
-    def ueberholt():      # eine neuere Anfrage derselben Seite will etwas anderes (Pfeil weiter)
+    def ueberholt():      # a newer request of the same page wants something else (arrow further)
         return bool(seite) and _RENDER_ANGEFRAGT.get((seite, schluessel), nr) < _RENDER_NEUESTE.get(seite, nr)
 
-    def warten(sperre):   # warten, solange die Anfrage nicht überholt ist
+    def warten(sperre):   # wait as long as the request is not overtaken
         while not sperre.acquire(timeout=0.2):
             if ueberholt():
                 raise FassungVerworfen()
 
     def ausfuehren(befehl, frist):
-        """wie subprocess.run, aber ein überholter Render wird abgebrochen (nur die aktuelle Zeile rechnet)"""
+        """like subprocess.run, but an overtaken render is stopped (only the current row renders)"""
         pr = subprocess.Popen(befehl, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **plattform.hilfsprozess_args())
         ende = time.time() + frist
         try:
@@ -2794,13 +2819,13 @@ def fassung_rechnen(p):
                 pr.kill()
                 pr.wait()
 
-    sperre = _WANDEL_LOCKS["fassung:" + schluessel]           # die Sperre je Datei wie beim Wandeln
+    sperre = _WANDEL_LOCKS["fassung:" + schluessel]           # the lock per file, as with converting
     warten(sperre)
     try:
-        e = vorhanden()       # eine gleiche Anfrage hat inzwischen gerechnet
+        e = vorhanden()       # an identical request has rendered in the meantime
         if e:
             return fertig(e, False, 0)
-        warten(_RENDER_PLAETZE)                                # höchstens zwei Renders gleichzeitig
+        warten(_RENDER_PLAETZE)                                # at most two renders at the same time
         t0 = time.time()
         try:
             RENDER_ZIEL.mkdir(parents=True, exist_ok=True)
@@ -2808,10 +2833,10 @@ def fassung_rechnen(p):
             try:
                 ein = arbeit / "ein.wav"
                 r = ausfuehren([FFMPEG, "-v", "error", "-y", "-i", pfad, "-c:a", "pcm_s24le", str(ein)], 180)
-                if r.returncode != 0:                  # Ogg im WAV-Container und Ähnliches: über die Wandlung
+                if r.returncode != 0:                  # Ogg in the WAV container and similar: via the conversion
                     ein = Path(gewandelt(pfad))
                 aus = arbeit / "aus.wav"
-                if schnitt:     # Paket 10: sample-genau ausschneiden (Länge aus der Differenz, damit 2 Takte 2 Takte sind)
+                if schnitt:     # cut sample-accurately (length from the difference, so that 2 bars are 2 bars)
                     sr = _wav_rate(str(ein))
                     a = int(round(schnitt[0] * sr))
                     b = a + int(round((schnitt[1] - schnitt[0]) * sr))
@@ -2820,8 +2845,9 @@ def fassung_rechnen(p):
                                     f"atrim=start_sample={a}:end_sample={b},asetpts=N/SR/TB", "-c:a", "pcm_s24le",
                                     str(teil if not nur_schnitt else aus)], 180)
                     if r.returncode != 0:
-                        raise FassungFehler(500, "ffmpeg brach beim Ausschneiden ab: " +
-                                            (r.stderr.decode(errors="replace").strip()[-200:] or f"Rückgabe {r.returncode}"))
+                        raise FassungFehler(500, tx("ffmpeg stopped while cutting: {detail}",
+                                                    detail=r.stderr.decode(errors="replace").strip()[-200:]
+                                                    or tx("exit code {code}", code=r.returncode)))
                     ein = teil
                 if nur_schnitt:
                     wer = "ffmpeg"
@@ -2841,8 +2867,9 @@ def fassung_rechnen(p):
                     r = ausfuehren(befehl + [str(ein), str(aus)], 300)
                     wer = "rubberband"
                 if r.returncode != 0 or not aus.is_file():
-                    raise FassungFehler(500, f"{wer} brach ab: " + (r.stderr.decode(errors="replace").strip()[-200:]
-                                                                     or f"Rückgabe {r.returncode}") + ", spielt Original")
+                    raise FassungFehler(500, tx("{wer} stopped: {detail}, playing original", wer=wer,
+                                                detail=r.stderr.decode(errors="replace").strip()[-200:]
+                                                or tx("exit code {code}", code=r.returncode)))
                 with _RENDER_LISTE_LOCK:
                     liste = _render_liste()
                     stamm, endung = os.path.splitext(z["name"])
@@ -2855,7 +2882,7 @@ def fassung_rechnen(p):
                     _render_liste_schreiben(liste)
                 return fertig(liste[schluessel], True, time.time() - t0)
             except subprocess.TimeoutExpired:
-                raise FassungFehler(500, "Rechnen dauerte über 5 Minuten, spielt Original")
+                raise FassungFehler(500, tx("Rendering took over 5 minutes, playing original"))
             finally:
                 shutil.rmtree(arbeit, ignore_errors=True)
         finally:
@@ -2867,10 +2894,10 @@ def fassung_rechnen(p):
 # ================================================================ HTTP
 
 class Server(ThreadingHTTPServer):
-    request_queue_size = 128   # Standard 5: bei 20 gleichzeitigen Suchen scheiterten 55 bis 75 %
+    request_queue_size = 128   # default 5: with 20 concurrent searches 55 to 75 % failed
     daemon_threads = True
-    # Windows: SO_REUSEADDR heißt dort „Port mit einem laufenden Server teilen“; zwei Open Libary hörten dann beide auf
-    # 8765 und die Seite spräche zufällig mit dem alten. Dort exklusiv binden, damit der zweite Start sauber scheitert.
+    # Windows: SO_REUSEADDR there means "share the port with a running server"; two Open Libary would then both listen
+    # on 8765 and the page would talk to the old one at random. Bind exclusively there, so a second start fails cleanly.
     allow_reuse_address = not plattform.WINDOWS
 
     def server_bind(self):
@@ -2879,7 +2906,7 @@ class Server(ThreadingHTTPServer):
         super().server_bind()
 
     def handle_error(self, request, client_address):
-        # Browser bricht ab (Abbrechen-Knopf, Seitenwechsel): kein Fehler, nicht ins Protokoll
+        # The browser aborts (cancel button, leaving the page): not an error, not into the log
         import sys
         if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
             return
@@ -2891,7 +2918,7 @@ def ganzzahl(p, k, std, lo, hi):
     try:
         return max(lo, min(hi, int(w)))
     except ValueError:
-        raise Fehleingabe(f"{k} muss eine Zahl sein")
+        raise Fehleingabe(tx("{k} must be a number", k=k))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -2921,7 +2948,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     def _host_ok(self):
-        """Nur eigene Adresse: sonst könnte jede Webseite im Browser Downloads anstoßen (DNS-Rebinding, CSRF)."""
+        """Own address only: otherwise any web page in the browser could trigger downloads (DNS rebinding, CSRF)."""
         return self.headers.get("Host", "") in (f"127.0.0.1:{PORT}", f"localhost:{PORT}")
 
     def _origin_ok(self):
@@ -2931,19 +2958,19 @@ class Handler(BaseHTTPRequestHandler):
     def _koerper(self):
         n = int(self.headers.get("Content-Length") or 0)
         if n > KOERPER_MAX:
-            while n > 0:            # erst zu Ende lesen, sonst sieht der Aufrufer statt der 400 einen Verbindungsabbruch
+            while n > 0:            # read to the end first, otherwise the caller sees a dropped connection instead of the 400
                 stueck = self.rfile.read(min(n, 1 << 20))
                 if not stueck:
                     break
                 n -= len(stueck)
-            raise Fehleingabe("Anfrage zu groß")
+            raise Fehleingabe(tx("Request too large"))
         try:
-            # 16 MB: Cmd+A schickt die festgehaltenen Pfade (Paket 6), der ganze Bestand braucht rund 10 MB
+            # 16 MB: Cmd+A sends the held paths, the whole library needs around 10 MB
             k = json.loads(self.rfile.read(min(n, KOERPER_MAX)) or b"{}")
         except ValueError:
-            raise Fehleingabe("Körper ist kein JSON")
+            raise Fehleingabe(tx("Body is not JSON"))
         if not isinstance(k, dict):
-            raise Fehleingabe("Körper muss ein JSON-Objekt sein")
+            raise Fehleingabe(tx("Body must be a JSON object"))
         return k
 
     def _konten(self):
@@ -2951,7 +2978,7 @@ class Handler(BaseHTTPRequestHandler):
                 "looperman": netz.WAECHTER.bericht()}
 
     def _html_seite(self, titel, text):
-        """Kleine Seite für Rückrufe aus dem Browser (Freesound-Login), im Ton der App."""
+        """Small page for callbacks from the browser (Freesound sign-in), in the app's look."""
         b = ("<!doctype html><meta charset=utf-8><title>Open Libary</title><body style='background:#161512;color:#e9e4d8;"
              "font:15px -apple-system,sans-serif;padding:48px'><b>" + html.escape(titel) + "</b><p>" + html.escape(text)
              + "</p></body>").encode("utf-8")
@@ -2967,13 +2994,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if not self._host_ok():
-            return self._fehler(403, "fremder Host")
+            return self._fehler(403, tx("foreign host"))
         u = urllib.parse.urlparse(self.path)
         p = urllib.parse.parse_qs(u.query)
         try:
             if u.path in ("/", "/index.html"):
-                stil = stil_aktuell()
-                b = (HIER / "seite.html").read_text(encoding="utf-8").replace("__STIL__", stil).encode("utf-8")
+                b = seite_html().encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(b)))
@@ -2982,7 +3008,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.wfile.write(b)
             if re.match(r"^/stile/[a-z0-9-]+\.css$", u.path):
                 datei = HIER / u.path.lstrip("/")
-                return self._datei(str(datei), "text/css; charset=utf-8") if datei.is_file() else self._fehler(404, "Stil fehlt")
+                return self._datei(str(datei), "text/css; charset=utf-8") if datei.is_file() else self._fehler(404, tx("Style is missing"))
             if u.path == "/favicon.ico":
                 return self._roh(FAVICON, "image/svg+xml")
             if u.path in ("/api/suche", "/api/zufall"):
@@ -2994,13 +3020,13 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/suche":
                 INDEX.aktuell_halten()
                 ab, n = ganzzahl(p, "offset", 0, 0, 10 ** 7), ganzzahl(p, "limit", 200, 1, 500)
-                # erste Seite mit gesetzten Gruppen: Treffer und Zählung ohne eigene Auswahl in einem Durchgang
+                # first page with groups set: matches and counts without their own selection in one pass
                 treffer, extra = filtern(p, gruppen=True) if ab == 0 and gruppen_gesetzt(p) else (filtern(p), None)
                 drums_frei = (p.get("drums_ohne_ton") or [""])[0] == "1"
-                gehoert = verlauf.gehoert_menge()     # Paket 4: schon gehörte Zeilen dämpft die Liste
+                gehoert = verlauf.gehoert_menge()     # the list dims rows that were already played
                 sammlung = (p.get("sammlung") or [""])[0]
                 tage = collections.Counter(z["verlauf_zeit"][:10] for z in treffer) \
-                    if sammlung == "gezogen" and ab == 0 else None      # Paket 4: Gezogen nach Tagen, mit Anzahl
+                    if sammlung == "gezogen" and ab == 0 else None      # Dragged by day, with counts
                 return self._json({"gesamt": len(treffer), "alle": len(INDEX.zeilen),
                                    "zeilen": [dict(oeffentlich(z), **({"gehoert": True} if z["pfad"] in gehoert else {}))
                                               for z in treffer[ab:ab + n]],
@@ -3009,17 +3035,17 @@ class Handler(BaseHTTPRequestHandler):
                                    "facetten": facetten_ohne_eigene(p, facetten(treffer, drums_frei=drums_frei), treffer, extra)
                                    if ab == 0 else None,
                                    "abdeckung": INDEX.abdeckung if ab == 0 else None,
-                                   "arten_alle": INDEX.arten if ab == 0 else None,     # Paket 6: Auswahl beim Bearbeiten
+                                   "arten_alle": INDEX.arten if ab == 0 else None,     # choice when editing
                                    "vollscan": fremder_scan() if ab == 0 else None,
                                    "vollscan_fertig": vollscan_fertig() if ab == 0 else None,
-                                   # Paket 7: Lizenzzeile über einer geöffneten Playlist
+                                   # license line above an opened playlist
                                    "lizenz_playlist": lizenz_playlist(sammlung)
                                    if ab == 0 and sammlung.startswith("pl:") else None})
             if u.path == "/api/stand":
                 INDEX.aktuell_halten()
                 ladungen = netz.stand()
                 messungen = MESSDIENST.stand_fuer()
-                for x in ladungen.values():     # je geladene Datei: wartet, misst, gemessen oder der Fehler
+                for x in ladungen.values():     # per downloaded file: waiting, analyzing, analyzed or the error
                     x["messung"] = [dict(messungen.get(nfc(q), {"status": "", "text": ""}), name=os.path.basename(q),
                                          pfad=q) for q in x.pop("pfade", [])]
                 return self._json({"alle": len(INDEX.zeilen), "gemessen": INDEX.gemessen, "fehler": INDEX.fehler,
@@ -3029,23 +3055,25 @@ class Handler(BaseHTTPRequestHandler):
                                    "messungen": messungen, "ladungen": ladungen,
                                    "index_version": INDEX.version, "vollscan": fremder_scan()})
             if u.path == "/api/zeilen":
-                # aktuelle Werte einzelner Zeilen (nach einer Messung), nur Pfade aus dem Index
+                # current values of single rows (after an analysis), only paths from the index
                 pfade = [nfc(x) for x in p.get("pfad", [])][:200]
                 return self._json({"zeilen": [oeffentlich(INDEX.nach_pfad[x]) for x in pfade if x in INDEX.nach_pfad],
                                    "index_version": INDEX.version})
             if u.path == "/api/stile":
                 return self._json({"stile": stile_liste(), "aktiv": stil_aktuell()})
+            if u.path == "/api/sprache":
+                return self._json({"sprache": i18n.current(), "sprachen": i18n.LANGUAGES})
             if u.path == "/api/sammlungen":
-                return self._json(dict(sammlungen.stand(), verlauf=verlauf.zahlen(),     # Paket 4: Zahlen links
-                                       lizenz_offen=lizenz_offen_zahl()))                # Paket 7: Zähler links
-            if u.path == "/api/lizenzen":     # Paket 7: Lizenzansicht, eine Zeile je Pack
+                return self._json(dict(sammlungen.stand(), verlauf=verlauf.zahlen(),     # counts on the left
+                                       lizenz_offen=lizenz_offen_zahl()))                # counter on the left
+            if u.path == "/api/lizenzen":     # license view, one row per pack
                 fremd = unbekannte_parameter(p, frozenset())
                 if fremd:
                     return self._json(fremd, 400)
                 INDEX.aktuell_halten()
                 return self._json(lizenz_packs())
             if u.path == "/api/downloads":
-                # alles, was die Open Libary aus dem Netz geladen hat, neueste zuerst
+                # everything Open Libary downloaded from the Web, newest first
                 INDEX.aktuell_halten()
                 zeilen = sorted((z for z in INDEX.zeilen if z["herkunft"] == "openlibary"),
                                 key=lambda z: (z["geladen_am"], z["name"].casefold()), reverse=True)
@@ -3056,47 +3084,47 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(zufall(p))
             if u.path == "/api/packs":
                 return self._json({"packs": INDEX.packs})
-            if u.path == "/api/fassung":     # Paket 3: angepasste Fassung rechnen (oder die schon gerechnete)
+            if u.path == "/api/fassung":     # render an adjusted version (or return the one already rendered)
                 fremd = unbekannte_parameter(p, FASSUNG_PARAMETER)
                 if fremd:
                     return self._json(fremd, 400)
                 try:
                     return self._json(fassung_rechnen(p))
-                except FassungVerworfen:    # kein Fehler (200): sonst meldet die Konsole jede verworfene Anfrage rot
-                    return self._json({"verworfen": True, "grund": "von einer neueren Anfrage überholt"})
+                except FassungVerworfen:    # not an error (200): otherwise the console reports every dropped request in red
+                    return self._json({"verworfen": True, "grund": tx("overtaken by a newer request")})
                 except FassungFehler as e:
-                    if e.code == 403:       # Schutz (Pfad nicht im Index) bleibt ein echter Fehler
+                    if e.code == 403:       # protection (path not in the index) stays a real error
                         return self._fehler(e.code, str(e))
-                    # Rechnen ging nicht (rubberband fehlt 503, bricht ab 500, Datei fehlt 404): ein Zustand, den der
-                    # Fuß rot anzeigt, kein Seitenfehler; 200, damit die Konsole nicht bei jedem Sample rot wird
+                    # Rendering did not work (rubberband missing 503, stopped 500, file missing 404): a state the
+                    # player bar shows in red, not a page error; 200, so the console does not turn red for every sample
                     return self._json({"fehler": str(e), "code": e.code})
             if u.path == "/audio":
                 pfad = nfc((p.get("pfad") or [""])[0])
-                if render_bekannt(pfad):      # Paket 3: gerechnete Fassung aus dem Render-Ordner
+                if render_bekannt(pfad):      # rendered version from the render folder
                     return self._datei(pfad, "audio/wav")
                 if not self._pfad_erlaubt(pfad):
-                    return self._fehler(403, "Pfad steht nicht im Index")
+                    return self._fehler(403, tx("path is not in the index"))
                 if not os.path.isfile(pfad):
-                    return self._fehler(404, "Datei fehlt auf der Platte")
-                # AIFF und FL-Werkssamples (Ogg im WAV) spielt kein Browser: gleich als WAV, ohne Fehlversuch der Seite
+                    return self._fehler(404, tx("File is missing on disk"))
+                # No browser plays AIFF and FL factory samples (Ogg in WAV): send WAV at once, no failed try by the page
                 if (p.get("wandeln") or [""])[0] == "1" or pfad.lower().endswith((".aif", ".aiff")) \
                         or audioform.ist_ogg_in_wav(pfad):
                     pfad = gewandelt(pfad)
                 return self._datei(pfad, mimetypes.guess_type(pfad)[0] or "application/octet-stream")
-            if u.path == "/api/ordner":          # Musiker-Test 03.11.: eigene Ordner, Werkzeuge
+            if u.path == "/api/ordner":          # your own folders, tools
                 return self._json(dict(ORDNER.stand(), werkzeuge=werkzeuge(), netz_ziel=str(NETZ_ZIEL), leicht=LEICHT.bericht(),
                                        messen_max=ORDNER_MESSEN_MAX, samples=len(INDEX.zeilen), heim=str(Path.home())))
-            if u.path == "/api/als_wav":         # 03.11.: beim Ziehen als WAV (Logic, Pro Tools)
+            if u.path == "/api/als_wav":         # as WAV when dragging (Logic, Pro Tools)
                 pfad = nfc((p.get("pfad") or [""])[0])
                 if not (self._pfad_erlaubt(pfad) or render_bekannt(pfad)) or not os.path.isfile(pfad):
-                    return self._fehler(403, "Pfad steht nicht im Index")
+                    return self._fehler(403, tx("path is not in the index"))
                 try:
                     return self._json({"pfad": als_wav(pfad)})
                 except (RuntimeError, OSError) as e:
                     return self._json({"fehler": str(e)})
-            if u.path == "/api/konten":          # Konten 03.11.: Freesound und Looperman auf einen Blick
+            if u.path == "/api/konten":          # accounts: Freesound and Looperman at a glance
                 return self._json(self._konten())
-            if u.path == "/api/netz/uebernommen":     # Konten 03.11.: zuletzt aus Looperman übernommen
+            if u.path == "/api/netz/uebernommen":     # accounts: last taken over from Looperman
                 aus = []
                 for e in netz.uebernommen((p.get("quelle") or ["looperman"])[0]):
                     z = INDEX.nach_pfad.get(nfc(e["pfad"]))
@@ -3105,18 +3133,18 @@ class Handler(BaseHTTPRequestHandler):
                                     art=z["art"] if z else "", dauer=z["dauer"] if z else None,
                                     im_index=z is not None))
                 return self._json({"dateien": aus})
-            if u.path == "/api/netz/pfad":       # Konten 03.11.: schon geladener Netz-Sound -> Pfad (Ziehen aus Netz)
+            if u.path == "/api/netz/pfad":       # accounts: an already downloaded Web sound -> path (dragging from Web)
                 pf = netz.pfad_von_seite((p.get("seite") or [""])[0])
                 return self._json({"pfad": pf if pf and self._pfad_erlaubt(pf) else None})
-            if u.path == "/api/klang":           # Musiker-Test 03.11.: Klang-Fingerabdruck, Stand
+            if u.path == "/api/klang":           # sound fingerprint, state
                 return self._json(dict(KLANG.stand(), samples=len(INDEX.zeilen)))
-            if u.path == "/api/freesound":       # Musiker-Test 03.11.: Freesound direkt, ohne Geheimnisse
+            if u.path == "/api/freesound":       # Freesound directly, without secrets
                 return self._json(dict(netz.freesound_stand(),
                                        rueckruf=f"http://127.0.0.1:{PORT}/api/freesound/rueckruf"))
             if u.path == "/api/freesound/login":
                 ziel = netz.freesound_login_url()
                 if not ziel:
-                    return self._html_seite("Freesound", "Erst Client-ID und Client-Secret in den Einstellungen eintragen.")
+                    return self._html_seite("Freesound", tx("First enter the client ID and client secret in Settings."))
                 self.send_response(302)
                 self.send_header("Location", ziel)
                 self.send_header("Content-Length", "0")
@@ -3124,10 +3152,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if u.path == "/api/freesound/rueckruf":
                 if (p.get("error") or [""])[0]:
-                    return self._html_seite("Freesound", "Login abgebrochen. In Open Libary unter Einstellungen neu starten.")
+                    return self._html_seite("Freesound", tx("Sign-in canceled. Start it again in Open Libary under Settings."))
                 ok, text = netz.freesound_code_tauschen((p.get("code") or [""])[0], (p.get("state") or [""])[0])
-                return self._html_seite("Freesound verbunden" if ok else "Freesound",
-                                        text + (". Dieses Fenster kann zu, weiter geht es in Open Libary." if ok else ""))
+                return self._html_seite(tx("Freesound connected") if ok else "Freesound",
+                                        text + (tx(". You can close this window and continue in Open Libary.") if ok else ""))
             if u.path == "/api/netz/suche":
                 quelle = (p.get("quelle") or ["archive"])[0]
                 q, lizenz = (p.get("q") or [""])[0], (p.get("lizenz") or ["cc0"])[0]
@@ -3136,16 +3164,16 @@ class Handler(BaseHTTPRequestHandler):
                 if quelle in netz.EINZEL_QUELLEN:
                     return self._json(netz.EINZEL_QUELLEN[quelle](q, lizenz, seite))
                 if quelle != "archive":
-                    return self._fehler(400, "unbekannte Quelle")
+                    return self._fehler(400, tx("unknown source"))
                 return self._json(netz.archive_suche(q, lizenz, seite, (p.get("alles") or [""])[0] != "1"))
             if u.path == "/api/netz/vorschau":
-                # Vorhören über den Server, wo die Quelle fremde Abrufe sperrt (ccMixter: Referer-Pflicht)
+                # preview through the server where the source blocks outside requests (ccMixter: requires a Referer)
                 t = netz._EINZEL.get((p.get("s") or [""])[0])
                 if not t:
-                    return self._fehler(404, "Sound nicht aus einer der letzten Suchen")
+                    return self._fehler(404, tx("Sound is not from one of the last searches"))
                 url = t.get("hoer_url") or t["url"]
                 if not url.startswith(("https://", "http://ccmixter.org/")):
-                    return self._fehler(400, "nur https")
+                    return self._fehler(400, tx("https only"))
                 kopf = dict(netz.UA, **netz.quell_kopf(url))
                 if self.headers.get("Range"):
                     kopf["Range"] = self.headers["Range"]
@@ -3162,12 +3190,12 @@ class Handler(BaseHTTPRequestHandler):
                             pass
                     return
                 except urllib.error.HTTPError as e:
-                    return self._fehler(e.code, f"Quelle meldet {e.code}")
+                    return self._fehler(e.code, tx("source reports {code}", code=e.code))
             if u.path == "/api/netz/geprueft":
                 return self._json({"packs": netz_geprueft()})
             if u.path == "/api/netz/dateien":
                 return self._json(netz.archive_dateien((p.get("id") or [""])[0]))
-            return self._fehler(404, "unbekannt")
+            return self._fehler(404, tx("unknown"))
         except Fehleingabe as e:
             return self._fehler(400, str(e))
         except netz.NichtGefunden as e:
@@ -3176,19 +3204,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._fehler(e.code, str(e))
         except (TimeoutError, OSError) as e:
             if "timed out" in str(e):
-                return self._fehler(504, "Die Quelle antwortet gerade nicht (Zeitüberschreitung); gleich nochmal versuchen")
-            return self._fehler(502, f"Quelle nicht erreichbar: {getattr(e, 'reason', e)}")
+                return self._fehler(504, tx("The source is not answering right now (timeout); try again in a moment"))
+            return self._fehler(502, tx("Source not reachable: {grund}", grund=getattr(e, "reason", e)))
         except Exception as e:
             return self._fehler(500, f"{type(e).__name__}: {e}")
 
     def do_POST(self):
         if not (self._host_ok() and self._origin_ok()) or \
                 not (self.headers.get("Content-Type") or "").startswith("application/json"):
-            return self._fehler(403, "nur von der Open Libary selbst")
+            return self._fehler(403, tx("only from Open Libary itself"))
         u = urllib.parse.urlparse(self.path)
         try:
             k = self._koerper()
-            pfad = nfc(k["pfad"] if isinstance(k.get("pfad"), str) else "")     # Zahl als Pfad gab 500 (Paket 4)
+            pfad = nfc(k["pfad"] if isinstance(k.get("pfad"), str) else "")     # a number as path gave 500
             if u.path == "/api/finder":
                 echt = os.path.realpath(pfad)
                 erlaubter_ordner = os.path.isdir(echt) and (echt.startswith(str(MUSIK) + os.sep)
@@ -3197,34 +3225,34 @@ class Handler(BaseHTTPRequestHandler):
                                                             or any(echt == o["pfad"] or echt.startswith(o["pfad"] + os.sep)
                                                                    for o in ORDNER.liste()))
                 if not self._pfad_erlaubt(pfad) and not erlaubter_ordner:
-                    return self._fehler(403, "Pfad steht nicht im Index")
+                    return self._fehler(403, tx("path is not in the index"))
                 if not os.path.exists(pfad):
-                    return self._fehler(404, "Datei fehlt auf der Platte")
-                if k.get("zeigen", True):   # die App zeigt selbst (zeigen: false), der Browser braucht den Server
+                    return self._fehler(404, tx("File is missing on disk"))
+                if k.get("zeigen", True):   # the app shows it itself (zeigen: false), the browser needs the server
                     plattform.im_ordner_zeigen(echt if erlaubter_ordner else pfad)
                 return self._json({"ok": True})
-            if u.path == "/api/messen" and ("pfade" in k or "suche" in k):    # Paket 6: Mehrfachauswahl
+            if u.path == "/api/messen" and ("pfade" in k or "suche" in k):    # multiple selection
                 pfade = [x for x in auswahl_pfade(k, MESSEN_MAX) if os.path.isfile(x)]
                 if not pfade:
-                    return self._fehler(404, "Keine der Dateien liegt auf der Platte.")
+                    return self._fehler(404, tx("None of the files is on disk."))
                 hinweis = MESSDIENST.dazu(pfade, klick=True)
                 return self._json({"ok": True, "ziel": "netz", "hinweis": hinweis, "anzahl": len(pfade)})
-            if u.path == "/api/korrektur" and "pack" in k:     # Paket 7: {pack: "...", felder: {lizenz, lizenz_grund, beleg}}
+            if u.path == "/api/korrektur" and "pack" in k:     # {pack: "...", felder: {lizenz, lizenz_grund, beleg}}
                 if "pfade" in k or "suche" in k:
-                    return self._fehler(400, "pack nicht zusammen mit pfade oder suche")
+                    return self._fehler(400, tx("pack not together with pfade or suche"))
                 try:
                     felder = korrekturen.pack_pruefen(k.get("pack"), k.get("felder"))
                     pack = nfc(k["pack"])
                     if pack not in INDEX.pack_menge:
-                        return self._fehler(400, "Einzelsounds aus dem Netz sind kein Pack, Lizenz je Datei (e)"
-                                            if pack in INDEX.packs else "Pack steht nicht in der Bibliothek")
+                        return self._fehler(400, tx("Single sounds from the Web are not a pack, license per file (e)")
+                                            if pack in INDEX.packs else tx("Pack is not in the library"))
                     e = korrekturen.pack_setzen(pack, felder)
                 except korrekturen.KorrekturFehler as e:
                     return self._fehler(400, str(e))
                 n = pack_im_index(pack)
                 return self._json({"ok": True, "pack": pack, "anzahl": n, "entscheid": e,
                                    "lizenz_offen": lizenz_offen_zahl()})
-            if u.path == "/api/korrektur":     # Paket 6: {pfade: [...] | suche: {...}, felder: {...}}
+            if u.path == "/api/korrektur":     # {pfade: [...] | suche: {...}, felder: {...}}
                 try:
                     felder = korrekturen.pruefen(k.get("felder"), set(INDEX.arten), tonart_norm)
                     pfade = auswahl_pfade(k)
@@ -3235,26 +3263,26 @@ class Handler(BaseHTTPRequestHandler):
                 korrektur_im_index(geaendert)
                 return self._json({"ok": True, "anzahl": len(geaendert), "lizenz_offen": lizenz_offen_zahl(),
                                    "zeilen": [oeffentlich(INDEX.nach_pfad[x]) for x in pfade[:500] if x in INDEX.nach_pfad]})
-            if u.path == "/api/auswahl":       # Paket 6: Pfade aller Treffer einer Suche (Cmd+A: kopieren, ziehen)
+            if u.path == "/api/auswahl":       # paths of all matches of a search (Cmd+A: copy, drag)
                 pfade = auswahl_pfade({"suche": k.get("suche")})
                 return self._json({"pfade": pfade, "gesamt": len(pfade)})
             if u.path == "/api/messen":
                 if not self._pfad_erlaubt(pfad):
-                    return self._fehler(403, "Pfad steht nicht im Index")
-                if not os.path.isfile(pfad):    # sonst meldete die Liste "gemessen", obwohl nichts lief (Prüfung 20.10.)
-                    return self._fehler(404, "Datei fehlt auf der Platte.")
+                    return self._fehler(403, tx("path is not in the index"))
+                if not os.path.isfile(pfad):    # otherwise the list reported "analyzed" although nothing ran (check 20.10.)
+                    return self._fehler(404, tx("File is missing on disk."))
                 hinweis = MESSDIENST.dazu([pfad], klick=True)
                 return self._json({"ok": True, "ziel": "netz", "hinweis": hinweis})
             if u.path == "/api/netz/laden":
                 ids = k.get("ids") or []
                 if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
-                    return self._fehler(400, "ids muss eine Liste sein")
+                    return self._fehler(400, tx("ids must be a list"))
                 code, antwort = netz.laden_starten(k.get("quelle") or "archive", str(k.get("id") or ""),
                                                    set(k.get("dateien") or []), bool(k.get("bestaetigt")),
                                                    ids=ids, ordner=str(k.get("ordner") or ""))
                 return self._json(antwort, code)
             if u.path == "/api/sammlungen":
-                if k.get("suche") is not None:      # Paket 6: Cmd+A über alle Treffer, der Server löst die Suche auf
+                if k.get("suche") is not None:      # Cmd+A over all matches, the server resolves the search
                     k = dict(k, pfade=auswahl_pfade({"suche": k.pop("suche")}))
                     k.pop("pfad", None)
                 try:
@@ -3263,23 +3291,35 @@ class Handler(BaseHTTPRequestHandler):
                                            verlauf=verlauf.zahlen(), lizenz_offen=lizenz_offen_zahl()))
                 except sammlungen.SammlungFehler as e:
                     return self._fehler(400, str(e))
-            if u.path == "/api/verlauf":      # Paket 4: {art: "gehoert"|"gezogen", pfad, datei?}
+            if u.path == "/api/verlauf":      # {art: "gehoert"|"gezogen", pfad, datei?}
                 try:
                     return self._json({"ok": True, "verlauf": verlauf.eintragen(k, self._pfad_erlaubt)})
                 except verlauf.VerlaufFehler as e:
                     return self._fehler(400, str(e))
+            if u.path == "/api/sprache":         # {sprache: "en"|"de"}; the page reloads afterwards
+                code = str(k.get("sprache") or "")
+                if code not in i18n.LANGUAGES:
+                    return self._fehler(400, tx("unknown language"))
+                (DATEN / "sprache.txt").write_text(code + "\n", encoding="utf-8")
+                code = i18n.set_language(code)
+                # rows carry texts built at load time (license reasons, warnings): reload before answering, so the
+                # page that reloads next already gets them in the new language (a few seconds for a big library)
+                netz.suche_vergessen()             # cached web results carry translated reasons too
+                if INDEX and getattr(INDEX, "sprache", None) != code:
+                    INDEX.laden()
+                return self._json({"ok": True, "sprache": code})
             if u.path == "/api/stil":
-                name = stil_normal(k.get("name"))   # "glas", "kobalt" oder "glas+kobalt"
+                name = stil_normal(k.get("name"))   # "glas", "kobalt" or "glas+kobalt"
                 if not name:
-                    return self._fehler(400, "unbekannter Stil")
+                    return self._fehler(400, tx("unknown style"))
                 (DATEN / "stil.txt").write_text(name + "\n", encoding="utf-8")
                 return self._json({"ok": True, "aktiv": name})
-            if u.path == "/api/als_wav":         # Ziehen (03.11.): {pfade, muster} -> je Pfad die WAV-Fassung, wo nötig
+            if u.path == "/api/als_wav":         # dragging: {pfade, muster} -> per path the WAV version, where needed
                 endungen = (".ogg", ".oga", ".flac", ".opus", ".m4a") + ((".mp3",) if k.get("muster") == "immer" else ())
                 aus, zahl, fehler, zu_viele = [], 0, "", 0
                 for x in [nfc(x) for x in (k.get("pfade") or []) if isinstance(x, str)][:2000]:
                     noetig = (self._pfad_erlaubt(x) or render_bekannt(x)) and os.path.isfile(x) and (
-                        x.lower().endswith(endungen) or audioform.ist_ogg_in_wav(x))   # FL-Werkssamples liest nur FL
+                        x.lower().endswith(endungen) or audioform.ist_ogg_in_wav(x))   # only FL reads FL factory samples
                     if noetig and zahl >= 30:
                         zu_viele += 1
                     elif noetig:
@@ -3289,34 +3329,34 @@ class Handler(BaseHTTPRequestHandler):
                         except (RuntimeError, OSError) as e:
                             fehler = str(e)
                     aus.append(x)
-                hinweis = (f"{zu_viele} weitere Dateien wären zu wandeln; sie gehen als Original" if zu_viele else
-                           (fehler + "; gezogen wird das Original") if fehler else "")
+                hinweis = (tx("{n} more files would need converting; they go as the original", n=zu_viele) if zu_viele else
+                           tx("{fehler}; the original is dragged", fehler=fehler) if fehler else "")
                 return self._json({"pfade": aus, "hinweis": hinweis})
-            if u.path == "/api/ordner":          # {pfad} hinzufügen | {pfad, entfernen: true} | {neu_einlesen: true}
-                if k.get("waehlen"):             # im Browser: Ordnerdialog von macOS (die App hat ihren eigenen)
+            if u.path == "/api/ordner":          # {pfad} add | {pfad, entfernen: true} | {neu_einlesen: true}
+                if k.get("waehlen"):             # in the browser: the macOS folder dialog (the app has its own)
                     try:
                         gewaehlt = plattform.ordner_waehlen()
                     except (OSError, subprocess.TimeoutExpired):
-                        return self._json(dict(ORDNER.stand(), ok=False, text="Der Ordnerdialog ging nicht auf; "
-                                               "den Pfad ins Feld einfügen"))
+                        return self._json(dict(ORDNER.stand(), ok=False,
+                                               text=tx("The folder dialog did not open; paste the path into the field")))
                     if not gewaehlt:
-                        return self._json(dict(ORDNER.stand(), ok=False, abgebrochen=True, text="Kein Ordner gewählt"))
+                        return self._json(dict(ORDNER.stand(), ok=False, abgebrochen=True, text=tx("No folder chosen")))
                     pfad = nfc(gewaehlt)
                 if k.get("neu_einlesen"):
                     ORDNER.einlesen()
-                    ok, text = True, "Liest neu ein"
+                    ok, text = True, tx("Rescanning")
                 elif k.get("entfernen"):
                     ok, text = ORDNER.entfernen(pfad)
                 else:
                     ok, text = ORDNER.hinzufuegen(pfad)
-                return self._json(dict(ORDNER.stand(), ok=ok, text=text))      # 200: Ablehnung ist kein Seitenfehler
-            if u.path == "/api/konten":          # Konten 03.11.: {looperman: true|false}
+                return self._json(dict(ORDNER.stand(), ok=ok, text=text))      # 200: a refusal is not a page error
+            if u.path == "/api/konten":          # {looperman: true|false}
                 if "looperman" in k:
                     netz.looperman_setzen(bool(k["looperman"]))
                 return self._json(dict(self._konten(), ok=True))
-            if u.path == "/api/klang":           # {alle: true} rechnet alles (Stunden), {anhalten: true}
+            if u.path == "/api/klang":           # {alle: true} computes everything (hours), {anhalten: true}
                 if k.get("anhalten"):
-                    ok, text = KLANG.anhalten(), "Angehalten; was fertig ist, bleibt"
+                    ok, text = KLANG.anhalten(), tx("Stopped; what is finished stays")
                 else:
                     ok, text = KLANG.alle_rechnen()
                 return self._json(dict(KLANG.stand(), samples=len(INDEX.zeilen), ok=ok, text=text))
@@ -3328,11 +3368,11 @@ class Handler(BaseHTTPRequestHandler):
                     ok, text = netz.freesound_code_tauschen(k["code"])
                 else:
                     ok, text = netz.freesound_schluessel_setzen(str(k.get("client_id") or ""), str(k.get("client_secret") or ""))
-                netz._SUCHE_CACHE.clear()      # Treffer tragen „Vorschau“ oder „Original“: neu fragen
+                netz._SUCHE_CACHE.clear()      # matches carry "preview" or "original": ask again
                 return self._json(dict(netz.freesound_stand(), ok=ok, text=text))
             if u.path == "/api/netz/abbrechen":
                 return self._json({"ok": netz.abbrechen(k.get("schluessel") or "")})
-            return self._fehler(404, "unbekannt")
+            return self._fehler(404, tx("unknown"))
         except Fehleingabe as e:
             return self._fehler(400, str(e))
         except netz.QuelleFehler as e:
@@ -3340,7 +3380,7 @@ class Handler(BaseHTTPRequestHandler):
         except netz.NichtGefunden as e:
             return self._fehler(404, str(e))
         except urllib.error.URLError as e:
-            return self._fehler(502, f"Quelle nicht erreichbar: {getattr(e, 'reason', e)}")
+            return self._fehler(502, tx("Source not reachable: {grund}", grund=getattr(e, "reason", e)))
         except Exception as e:
             return self._fehler(500, f"{type(e).__name__}: {e}")
 
@@ -3384,9 +3424,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def alten_server_ersetzen(port):
-    """Fertige App nach einem Update (Prüfung 03.11.): läuft auf dem Port ein Server aus einem App-Paket, dessen Code
-    älter ist oder nicht mehr existiert, wird er beendet und dieser startet. Einen Server außerhalb eines App-Pakets
-    (Jeremias' Einrichtung) lässt er immer in Ruhe. -> Server oder None."""
+    """Packaged app after an update: if a server from an app bundle whose code is older or no longer exists runs on
+    the port, it is stopped and this one starts. A server outside an app bundle (the author's setup) is always left
+    alone. -> server or None."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/stand", timeout=3) as r:
             d = json.loads(r.read())
@@ -3396,7 +3436,7 @@ def alten_server_ersetzen(port):
     if not (d.get("paket") or ".app/" in alt + "/") or not isinstance(d.get("pid"), int):
         return None
     if alt == str(HIER) and d.get("code_stand") == CODE_STAND:
-        return None                                   # derselbe Stand läuft schon
+        return None                                   # the same state is already running
     try:
         os.kill(d["pid"], signal.SIGTERM)
     except OSError:
@@ -3412,19 +3452,20 @@ def alten_server_ersetzen(port):
 
 def main():
     global INDEX, PORT, MESSDIENST, ORDNER, KLANG, LEICHT
-    ap = argparse.ArgumentParser(description="Open Libary: Sample-Bibliothek durchsuchen, abspielen, Netz-Packs laden")
+    ap = argparse.ArgumentParser(description="Open Libary: search and play your sample library, download Web packs")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--ohne-browser", action="store_true")
-    ap.add_argument("--ersetzen", action="store_true", help="alten Server derselben App nach einem Update beenden")
+    ap.add_argument("--ersetzen", action="store_true", help="stop the old server of the same app after an update")
     a = ap.parse_args()
     PORT = a.port
+    i18n.set_language(sprache_gespeichert())
     url = f"http://127.0.0.1:{a.port}/"
     try:
         srv = Server(("127.0.0.1", a.port), Handler)
     except OSError:
         srv = alten_server_ersetzen(a.port) if a.ersetzen else None
     if srv is None:
-        print(f"Open Libary läuft schon: {url}")
+        print(f"Open Libary is already running: {url}")
         if not a.ohne_browser:
             webbrowser.open(url)
         return
@@ -3434,15 +3475,15 @@ def main():
     MESSDIENST = Messdienst()
 
     def beenden(signum, frame):
-        # "openlibary stopp" (pkill): laufende gehoer-Messungen mit beenden, sonst rechnen sie als Waisen weiter;
-        # gehoer hält bei SIGTERM sauber an und löscht seinen Vermerk "in Arbeit"
+        # "openlibary stop" (pkill): stop running gehoer analyses too, otherwise they keep running as orphans;
+        # gehoer stops cleanly on SIGTERM and deletes its "in progress" note
         for pid in list(MESSDIENST._pids):
             try:
                 os.kill(pid, signal.SIGTERM)
             except OSError:
                 pass
         if MESSDIENST._pids and getattr(MESSDIENST, "liste_jetzt", None):
-            time.sleep(1)                       # gehoer hat die Liste beim Start gelesen; danach ist sie übrig
+            time.sleep(1)                       # gehoer read the list at start; after that it is left over
             try:
                 os.unlink(MESSDIENST.liste_jetzt)
             except OSError:
@@ -3456,22 +3497,22 @@ def main():
     KLANG = klangnaehe.Klang(GEHOER_PY, GEHOER_CODE, KLANG_DB, MESS_PRIO, {
         "OPENLIBARY_KLANG_DB": str(KLANG_DB), "OPENLIBARY_BESTAND": str(BESTAND), "OPENLIBARY_ZUSAETZE": str(ZUSAETZE),
         "OPENLIBARY_EIGENE": str(EIGENE), "OPENLIBARY_GEHOER_CODE": str(GEHOER_CODE)})
-    # Konten 03.11.: Looperman-Downloads aus dem Browser (nie unter „Frei (Netz)“, siehe netz.LOOPERMAN_LIZENZ)
+    # Looperman downloads from the browser (never under "Frei (Netz)", see netz.LOOPERMAN_LIZENZ)
     netz.KONFIG["looperman_ziel"] = Path(os.environ.get("OPENLIBARY_LOOPERMAN_ZIEL", MUSIK / "Samples/Looperman"
                                                         if _EIGENE_ABLAGE else ABLAGE / "Looperman"))
     netz.WAECHTER.starten()
     ORDNER = ordner.Ordner(ORDNER_LISTE, EIGENE, ordner_bekannt, ordner_eingelesen, netz.KONFIG["ffprobe"],
-                           ohne=[nfc(str(RENDER_ZIEL))])     # gerechnete Fassungen sind keine Samples (Paket 3)
-    LEICHT.starten()                             # misst im Hintergrund, nur Lücken, ein Prozess
-    takt = threading.Timer(90, ordner_takt)      # erst nach dem Start einlesen, dann stündlich
+                           ohne=[nfc(str(RENDER_ZIEL))])     # rendered versions are not samples
+    LEICHT.starten()                             # analyzes in the background, only gaps, one process
+    takt = threading.Timer(90, ordner_takt)      # scan only after the start, then every hour
     takt.daemon = True
     takt.start()
-    print(f"Open Libary: {len(INDEX.zeilen)} Samples, {INDEX.gemessen} gemessen, geladen in {time.time() - t0:.1f} s",
+    print(f"Open Libary: {len(INDEX.zeilen)} samples, {INDEX.gemessen} analyzed, loaded in {time.time() - t0:.1f} s",
           flush=True)
-    nachholen = threading.Timer(60, MESSDIENST.nachholen)     # erst nach dem Start, der Mac hat dann Luft
+    nachholen = threading.Timer(60, MESSDIENST.nachholen)     # only after the start, when the Mac has room to breathe
     nachholen.daemon = True
     nachholen.start()
-    print(f"Offen unter {url} (Strg+C beendet)", flush=True)
+    print(f"Open at {url} (Ctrl+C quits)", flush=True)
     if not a.ohne_browser:
         threading.Timer(0.3, lambda: webbrowser.open(url)).start()
     try:

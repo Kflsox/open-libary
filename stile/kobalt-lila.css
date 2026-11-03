@@ -1,4 +1,4 @@
-/* Kobalt in Lila: derselbe Aufbau wie kobalt.css, die eine Farbe ist Violett statt Kobaltblau. */
+/* Cobalt in Violet: same layout as kobalt.css, the one color is violet instead of cobalt blue. */
 :root{
   --grund:#f7f7f4; --flaeche:#ecece7; --zeile:#ece6fb; --linie:#e1e1db; --linie2:#c9c9c2;
   --text:#0d0d0d; --leise:#5a5a55; --sehrleise:#8d8d86;
@@ -26,7 +26,7 @@ aside h3{color:#fff;font-weight:800;letter-spacing:.02em;text-transform:none;fon
 .chip.raus .n{color:#ff8f86}
 aside input,aside select{background:rgba(255,255,255,.12);border-color:transparent}
 aside input::placeholder{color:#c9b6ff}
-/* linke Spalte (24.10.2026): wie Kobalt, in Violett */
+/* left column: like Cobalt, in violet */
 #filter{--sp-leise:#c9b6ff; --sp-blass:rgba(255,255,255,.52); --sp-hover:rgba(255,255,255,.12); --sp-ort-an:rgba(255,255,255,.12);
   --sp-marke:rgba(255,255,255,.16); --sp-an:#ffffff; --sp-an-text:#5b2bd9; --sp-raus:#ff8f86; --sp-spur:rgba(0,0,0,.18);
   --sp-daumen:#ffffff; --sp-daumen-text:#5b2bd9; --sp-linie:rgba(255,255,255,.16)}
@@ -42,8 +42,8 @@ footer button{background:rgba(255,255,255,.1);border-color:transparent}
 #jetzt .liz.ja,#jetzt .liz.unklar,#jetzt .liz.nein,#jetzt .liz.ungeprüft{color:#fff}
 tbody tr.aktiv .aktionen button{color:#fff;border-color:#555}
 
-/* Mit Liquid Glass (Klasse glas, Material aus glasschicht.css): Kopf und Player als violett getöntes Glas, Schrift weiß
-   wie bisher. Tönung so dicht, dass weiße Schrift auch über der hellsten Zeile 4,5:1 hält; Nebentexte dafür heller. */
+/* With Liquid Glass (class glas, material from glasschicht.css): header and player as violet-tinted glass, text white
+   as before. Tint dense enough that white text keeps 4.5:1 even over the lightest row; secondary text lighter for that. */
 html.glas{
   --spalte-rand:var(--leiste);
   --glas:rgba(91,43,217,.90); --glas-deckend:#5b2bd9; --glas-dicht:rgba(249,247,255,.94); --glas-probe:#5b2bd9;
@@ -51,7 +51,7 @@ html.glas{
   --glas-innen:inset 0 .5px 0 rgba(255,255,255,.45),inset 0 0 0 .5px rgba(255,255,255,.16);
   --menue-schatten:0 12px 40px rgba(60,20,140,.18),0 1px 3px rgba(0,0,0,.08);
   --glanz:.05; --kante1:rgba(255,255,255,.72); --kante2:rgba(255,255,255,.10); --kante3:rgba(255,255,255,.38);
-  /* Füllungen dunkler statt heller: weiße Schrift auf violettem Glas verliert sonst Kontrast; Nebentexte im Fuß weiß */
+  /* Fills darker instead of lighter: white text on violet glass loses contrast otherwise; secondary text in the player bar white */
   --kopf-text:#ffffff; --kopf-fuellung:rgba(30,6,90,.24); --kopf-fuellung2:rgba(30,6,90,.36);
   --fuss-leise:#ffffff; --fuss-linie:rgba(255,255,255,.22); --fuss-fuellung:rgba(30,6,90,.22);
   --segment-spur:rgba(30,6,90,.24); --segment-daumen:#ffffff; --segment-text:#4a1fc0; --segment-schatten:0 2px 6px rgba(40,10,110,.3);

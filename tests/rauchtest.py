@@ -1,18 +1,20 @@
-"""Rauchtest für Open Libary auf Mac, Windows und Linux (lokal und in GitHub Actions).
+"""Smoke test for Open Libary on Mac, Windows and Linux (locally and in GitHub Actions).
 
-Erzeugt eine kleine Test-Bibliothek aus synthetischen Klängen (keine fremden Samples im Repo), startet den Server so,
-wie ihn die fertigen Apps starten, legt den Ordner an und prüft: Einlesen, Längen, Wiedergabe jedes Formats, leichte
-Messung (Tempo eines Loops, Grundton einer 808), WAV beim Ziehen, gesperrte Ordner, zweiter Start auf demselben Port.
+Builds a small test library from synthetic sounds (no third-party samples in the repo), starts the server the way the
+finished apps start it, adds the folder and checks: scanning, lengths, playback of every format, the light analysis
+(tempo of a loop, root note of an 808), WAV when dragging, blocked folders, interface language, and a second start on
+the same port.
 
-    python tests/rauchtest.py [--python PFAD] [--code ORDNER] [--port 8799]
+    python tests/rauchtest.py [--python PATH] [--code FOLDER] [--port 8799]
 
-Braucht numpy und soundfile (im Python, das den Test UND den Server ausführt). Exit 1, wenn eine Prüfung scheitert.
+Needs numpy and soundfile (in the Python that runs the test AND the server). Exit 1 when a check fails.
 """
 import argparse
 import io
 import json
 import math
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -32,12 +34,12 @@ FEHLER = []
 
 
 def pruefe(name, ok, info=""):
-    print(f"{'OK    ' if ok else 'FEHLER'} {name}{(': ' + str(info)) if info else ''}", flush=True)
+    print(f"{'OK    ' if ok else 'FAILED'} {name}{(': ' + str(info)) if info else ''}", flush=True)
     if not ok:
         FEHLER.append(name)
 
 
-# ------------------------------------------------------------------ Testklänge
+# ------------------------------------------------------------------ test sounds
 def kick(dauer=0.5):
     t = np.arange(int(dauer * SR)) / SR
     f = 50 + 70 * np.exp(-t * 25)
@@ -55,7 +57,7 @@ def rauschen(dauer, abkling=30.0, saat=1):
 
 
 def loop(bpm=120.0, takte=4):
-    """Kick auf jedem Schlag, Hi-Hat auf jedem Achtel: Länge genau takte * 4 Schläge."""
+    """Kick on every beat, hi-hat on every eighth: length exactly takte * 4 beats."""
     schlag = 60.0 / bpm
     n = int(round(takte * 4 * schlag * SR))
     x = np.zeros(n, np.float32)
@@ -69,7 +71,7 @@ def loop(bpm=120.0, takte=4):
 
 
 def ogg_im_wav(x, ziel):
-    """Wie die Werkssamples von FL Studio: RIFF/WAVE mit Formatkennung 0x674F, im data-Block ein Ogg-Vorbis-Strom."""
+    """Like FL Studio's factory samples: RIFF/WAVE with format tag 0x674F, an Ogg Vorbis stream in the data chunk."""
     b = io.BytesIO()
     sf.write(b, x, SR, format="OGG", subtype="VORBIS")
     ogg = b.getvalue()
@@ -81,7 +83,7 @@ def ogg_im_wav(x, ziel):
 
 
 def bibliothek(ordner):
-    """-> {Dateiname: erwartete Länge in s}"""
+    """-> {file name: expected length in s}"""
     ordner.mkdir(parents=True)
     erwartet = {}
 
@@ -91,14 +93,14 @@ def bibliothek(ordner):
 
     schreibe("Kick 01.wav", kick(), subtype="PCM_16")
     schreibe("808 A.wav", ton(55.0, 1.5, 0.8), subtype="PCM_24")           # A1 = MIDI 33
-    schreibe("Groove Loop.wav", loop(120.0, 4), subtype="PCM_16")          # Tempo nur aus der Messung
+    schreibe("Groove Loop.wav", loop(120.0, 4), subtype="PCM_16")          # tempo only from the analysis
     schreibe("Snare 02.aif", rauschen(0.4, 12.0), format="AIFF", subtype="PCM_16")
     schreibe("Pad Cm.flac", ton(261.63, 2.0, 0.5), format="FLAC", subtype="PCM_16")
     schreibe("Atmo.ogg", rauschen(2.0, 0.5, 3), format="OGG", subtype="VORBIS")
     try:
         schreibe("Perc 03.mp3", rauschen(0.6, 8.0, 4), format="MP3", subtype="MPEG_LAYER_III")
-    except Exception as e:                       # ältere libsndfile ohne MP3-Schreiben: dann eben ohne
-        print("Hinweis: MP3 nicht erzeugbar,", e)
+    except Exception as e:                       # older libsndfile cannot write MP3: then without it
+        print("Note: cannot create MP3,", e)
     x = ton(98.0, 1.0, 2.0)
     ogg_im_wav(x, ordner / "FL Snare.wav")
     erwartet["FL Snare.wav"] = len(x) / SR
@@ -114,8 +116,17 @@ def hol(basis, pfad, daten=None, roh=False, frist=60):
         return (r.headers.get("Content-Type", ""), b) if roh else json.loads(b)
 
 
+def fehlertext(basis, pfad, daten):
+    """The server's error text for a request that must fail (400)."""
+    try:
+        hol(basis, pfad, daten)
+    except urllib.error.HTTPError as e:
+        return json.loads(e.read() or b"{}").get("fehler")
+    return None
+
+
 def server_befehl(python, code, port):
-    # so wie app/main.m und app/fenster/main.js ihn starten
+    # the way app/main.m and app/fenster/main.js start it
     return [python, "-B", "-E", "-s", "-X", "utf8", str(Path(code) / "openlibary.py"), "--port", str(port), "--ohne-browser"]
 
 
@@ -126,13 +137,13 @@ def main():
     ap.add_argument("--port", type=int, default=8799)
     a = ap.parse_args()
     basis = f"http://127.0.0.1:{a.port}"
-    # unter dem Benutzerordner: das System-Temp liegt auf dem Mac in /private/var, das Open Libary als Systemordner sperrt
+    # under the home folder: on the Mac the system temp lives in /private/var, which Open Libary blocks as a system folder
     basis_tmp = Path.home() / ".cache"
     basis_tmp.mkdir(exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="openlibary-rauchtest-", dir=basis_tmp))
-    ordner = tmp / "Übungs Kit (Größe)"
+    ordner = tmp / "Übungs Kit (Größe)"            # non-ASCII on purpose: umlauts and parentheses in paths
     erwartet = bibliothek(ordner)
-    print(f"Testordner {ordner} mit {len(erwartet)} Dateien")
+    print(f"Test folder {ordner} with {len(erwartet)} files")
     umgebung = dict(os.environ, OPENLIBARY_DATEN=str(tmp / "daten"), OPENLIBARY_PAKET="1",
                     OPENLIBARY_KONFIG=str(tmp / "konfig"), OPENLIBARY_DOWNLOADS=str(tmp / "downloads"),
                     OPENLIBARY_RENDERS=str(tmp / "renders"), OPENLIBARY_NETZ_ZIEL=str(tmp / "netz"),
@@ -151,16 +162,16 @@ def main():
                 break
             except (urllib.error.URLError, OSError):
                 if srv.poll() is not None or time.time() - t0 > 90:
-                    raise SystemExit("Server startet nicht:\n" + (tmp / "server.log").read_text(encoding="utf-8")[-3000:])
+                    raise SystemExit("Server does not start:\n" + (tmp / "server.log").read_text(encoding="utf-8")[-3000:])
                 time.sleep(0.5)
-        pruefe("Server startet", True, f"{time.time() - t0:.1f} s, System {st.get('system')}, Paket {st.get('paket')}")
+        pruefe("server starts", True, f"{time.time() - t0:.1f} s, system {st.get('system')}, package {st.get('paket')}")
 
         r = hol(basis, "/api/ordner", {"pfad": str(ordner)})
-        pruefe("Ordner hinzufügen", r.get("ok"), r.get("text"))
+        pruefe("add folder", r.get("ok"), r.get("text"))
         gesperrt = hol(basis, "/api/ordner", {"pfad": str(Path.home())})
-        pruefe("Benutzerordner gesperrt", not gesperrt.get("ok"), gesperrt.get("text"))
+        pruefe("home folder blocked", not gesperrt.get("ok"), gesperrt.get("text"))
 
-        # Einlesen, dann leichte Messung (startet 30 s nach dem Server)
+        # scanning, then the light analysis (starts 30 s after the server)
         ende = time.time() + 240
         while time.time() < ende:
             o, s = hol(basis, "/api/ordner"), hol(basis, "/api/stand")
@@ -170,20 +181,20 @@ def main():
                 break
             time.sleep(2)
         o = hol(basis, "/api/ordner")
-        pruefe("leichte Messung gelaufen", (o.get("leicht") or {}).get("fertig", 0) >= len(erwartet), o.get("leicht"))
+        pruefe("light analysis ran", (o.get("leicht") or {}).get("fertig", 0) >= len(erwartet), o.get("leicht"))
         zeilen = {Path(z["pfad"]).name: z for z in hol(basis, "/api/suche?q=").get("zeilen", [])}
-        pruefe("alle Dateien im Index", set(erwartet) <= set(zeilen), sorted(set(erwartet) - set(zeilen)))
+        pruefe("all files in the index", set(erwartet) <= set(zeilen), sorted(set(erwartet) - set(zeilen)))
 
         for name, soll in erwartet.items():
             z = zeilen.get(name) or {}
             ist = z.get("dauer")
-            pruefe(f"Länge {name}", ist is not None and abs(ist - soll) < 0.08, f"{ist} statt {soll:.3f}")
+            pruefe(f"length {name}", ist is not None and abs(ist - soll) < 0.08, f"{ist} instead of {soll:.3f}")
 
         lp = zeilen.get("Groove Loop.wav") or {}
-        pruefe("Tempo des Loops gemessen", lp.get("bpm") is not None and abs(float(lp["bpm"]) - 120) < 2,
+        pruefe("loop tempo analyzed", lp.get("bpm") is not None and abs(float(lp["bpm"]) - 120) < 2,
                f"{lp.get('bpm')} ({lp.get('bpm_quelle')})")
         b8 = zeilen.get("808 A.wav") or {}
-        pruefe("Grundton der 808 gemessen", b8.get("grundton") is not None, f"{b8.get('grundton')} (Art {b8.get('art')})")
+        pruefe("808 root note analyzed", b8.get("grundton") is not None, f"{b8.get('grundton')} (type {b8.get('art')})")
 
         for name in erwartet:
             z = zeilen.get(name)
@@ -192,27 +203,42 @@ def main():
             try:
                 art, daten = hol(basis, "/audio?pfad=" + urllib.parse.quote(z["pfad"]), roh=True)
                 ok = len(daten) > 100
-                if name.endswith((".aif", "FL Snare.wav")):        # muss als PCM-WAV kommen, sonst spielt kein Browser
+                if name.endswith((".aif", "FL Snare.wav")):        # must arrive as PCM WAV, otherwise no browser plays it
                     ok = ok and daten[:4] == b"RIFF" and struct.unpack("<H", daten[20:22])[0] in (1, 3, 0xFFFE)
-                pruefe(f"Wiedergabe {name}", ok, f"{art}, {len(daten)} Bytes")
+                pruefe(f"playback {name}", ok, f"{art}, {len(daten)} bytes")
             except Exception as e:
-                pruefe(f"Wiedergabe {name}", False, e)
+                pruefe(f"playback {name}", False, e)
 
         pfade = [zeilen[n]["pfad"] for n in ("Pad Cm.flac", "FL Snare.wav", "Kick 01.wav") if n in zeilen]
         r = hol(basis, "/api/als_wav", {"pfade": pfade, "muster": "noetig"})
         neu = r.get("pfade") or []
-        pruefe("Ziehen: FLAC als WAV", len(neu) == 3 and neu[0] != pfade[0] and neu[0].lower().endswith(".wav")
+        pruefe("drag: FLAC as WAV", len(neu) == 3 and neu[0] != pfade[0] and neu[0].lower().endswith(".wav")
                and Path(neu[0]).is_file(), neu[:1])
-        pruefe("Ziehen: FL-Sample als WAV", len(neu) == 3 and neu[1] != pfade[1] and Path(neu[1]).is_file(), neu[1:2])
-        pruefe("Ziehen: normales WAV bleibt", len(neu) == 3 and neu[2] == pfade[2])
+        pruefe("drag: FL sample as WAV", len(neu) == 3 and neu[1] != pfade[1] and Path(neu[1]).is_file(), neu[1:2])
+        pruefe("drag: plain WAV stays", len(neu) == 3 and neu[2] == pfade[2])
 
         zweiter = subprocess.run(server_befehl(a.python, a.code, a.port), env=umgebung, capture_output=True,
                                  timeout=60, **zusatz)
         ausgabe = (zweiter.stdout + zweiter.stderr).decode("utf-8", "replace")
-        pruefe("zweiter Start erkennt den laufenden Server", "läuft schon" in ausgabe, ausgabe.strip()[-120:])
-        pruefe("erster Server antwortet weiter", hol(basis, "/api/stand").get("pid") == st.get("pid"))
+        pruefe("second start finds the running server", re.search(r"already running|läuft schon", ausgabe) is not None,
+               ausgabe.strip()[-120:])
+        pruefe("first server keeps answering", hol(basis, "/api/stand").get("pid") == st.get("pid"))
         seite = hol(basis, "/", roh=True)[1].decode("utf-8", "replace")
-        pruefe("Seite wird ausgeliefert", "<title>" in seite and "Open Libary" in seite)
+        pruefe("page is served", "<title>" in seite and "Open Libary" in seite)
+
+        # interface language: English by default, German from lang/de.json for the page and the server's messages
+        sp = hol(basis, "/api/sprache")
+        pruefe("language: English by default", sp.get("sprache") == "en" and "de" in (sp.get("sprachen") or {}), sp)
+        pruefe("language: English page has no table", "const TRANSLATION = {};" in seite and 'const LANG = "en"' in seite)
+        pruefe("language: English server message", fehlertext(basis, "/api/stil", {"name": "x"}) == "unknown style")
+        pruefe("language: unknown code refused", fehlertext(basis, "/api/sprache", {"sprache": "xx"}) == "unknown language")
+        hol(basis, "/api/sprache", {"sprache": "de"})
+        seite_de = hol(basis, "/", roh=True)[1].decode("utf-8", "replace")
+        pruefe("language: German page carries the table", 'const LANG = "de"' in seite_de
+               and '"Library":"Bibliothek"' in seite_de.replace('": "', '":"'))
+        pruefe("language: German server message", fehlertext(basis, "/api/stil", {"name": "x"}) == "unbekannter Stil")
+        pruefe("language: saved", (tmp / "daten" / "sprache.txt").read_text(encoding="utf-8").strip() == "de")
+        hol(basis, "/api/sprache", {"sprache": "en"})
     finally:
         srv.terminate()
         try:
@@ -222,10 +248,10 @@ def main():
         protokoll.close()
         log = (tmp / "server.log").read_text(encoding="utf-8", errors="replace")
         if "Traceback" in log:
-            print("--- Server-Protokoll ---\n" + log[-4000:])
-            FEHLER.append("Traceback im Server-Protokoll")
+            print("--- server log ---\n" + log[-4000:])
+            FEHLER.append("traceback in the server log")
         shutil.rmtree(tmp, ignore_errors=True)
-    print(f"\n{len(FEHLER)} Fehler" + (": " + ", ".join(FEHLER) if FEHLER else ""))
+    print(f"\n{len(FEHLER)} failed" + (": " + ", ".join(FEHLER) if FEHLER else ""))
     sys.exit(1 if FEHLER else 0)
 
 

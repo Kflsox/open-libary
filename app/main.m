@@ -1,10 +1,10 @@
-// Open Libary.app: Fenster um die Open Libary-Seite (http://127.0.0.1:8765/) mit echtem Drag & Drop in die DAW.
-// Ein Browser kann keine Datei vom Rechner in eine DAW ziehen lassen; diese App schon: die Seite meldet beim Ziehen den
-// Pfad, die App startet damit eine native Ziehsitzung mit der Originaldatei (keine Kopie).
+// Open Libary.app: a window around the Open Libary page (http://127.0.0.1:8765/) with real drag and drop into the DAW.
+// A browser cannot let you drag a file from the computer into a DAW; this app can: while dragging, the page reports the
+// path and the app starts a native drag session with the original file (no copy).
 //
-// Objective-C seit 03.11.2026 („max kompi“): das Swift der aktuellen Command Line Tools baut für Intel nur noch ab
-// macOS 13; Objective-C läuft als Universal-App auf Apple-Chip ab macOS 11 und Intel ab 10.15. Verhalten wie die
-// frühere main.swift (app/alt/). Bauen: bash app/bauen.sh (eigene Einrichtung) oder bash app/app_paket.sh (fertige App).
+// Objective-C since 03.11.2026: the Swift of the current Command Line Tools builds for Intel only from macOS 13 on;
+// Objective-C runs as a Universal app on Apple chips from macOS 11 and on Intel from 10.15. Same behavior as the
+// earlier main.swift. Build: bash app/bauen.sh (own setup) or bash app/app_paket.sh (finished app).
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
@@ -12,8 +12,8 @@ static NSString *const ADRESSE = @"http://127.0.0.1:8765/";
 
 static NSString *starterPfad(void) { return [NSHomeDirectory() stringByAppendingPathComponent:@".local/bin/openlibary"]; }
 
-// Fertige App (app/app_paket.sh): Python und Code liegen im Programmpaket, je Architektur ein eigenes Python; die
-// Nutzerdaten unter ~/Library/Application Support/Open Libary. Fehlen sie (Jeremias' Einrichtung), startet der Starter.
+// Finished app (app/app_paket.sh): Python and code live inside the app bundle, one Python per architecture; user data
+// under ~/Library/Application Support/Open Libary. Without them (the author's own setup) the starter script runs.
 static NSString *paketPython(void) {
 #if defined(__arm64__)
     NSString *arch = @"arm64";
@@ -32,6 +32,11 @@ static NSString *datenOrdner(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/Open Libary"];
 }
 
+// Interface language: English unless the user chose German (Settings > Language). Before the page loads it comes from
+// sprache.txt in the data folder; the page reports its language on every load, then the menus follow.
+static BOOL deutsch = NO;
+static NSString *L(NSString *en, NSString *de) { return deutsch ? de : en; }
+
 @interface Fenster : NSObject <NSApplicationDelegate, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate,
                                NSDraggingSource, NSWindowDelegate>
 @property (strong) NSWindow *fenster;
@@ -43,9 +48,13 @@ static NSString *datenOrdner(void) {
 @implementation Fenster
 
 - (void)applicationDidFinishLaunching:(NSNotification *)n {
+    NSString *gewaehlt = [NSString stringWithContentsOfFile:[datenOrdner() stringByAppendingPathComponent:@"sprache.txt"]
+                                                   encoding:NSUTF8StringEncoding error:nil];
+    deutsch = [[gewaehlt stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
+               isEqualToString:@"de"];
     WKWebViewConfiguration *konf = [[WKWebViewConfiguration alloc] init];
     konf.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
-    for (NSString *name in @[@"ziehen", @"kopieren", @"finder", @"ordner"])
+    for (NSString *name in @[@"ziehen", @"kopieren", @"finder", @"ordner", @"sprache"])
         [konf.userContentController addScriptMessageHandler:self name:name];
     self.web = [[WKWebView alloc] initWithFrame:NSZeroRect configuration:konf];
     self.web.UIDelegate = self;
@@ -64,7 +73,7 @@ static NSString *datenOrdner(void) {
     [self.fenster makeKeyAndOrderFront:nil];
     [self menueBauen];
 
-    // die letzte Mausbewegung mit gedrückter Taste: daraus startet die Ziehsitzung
+    // the last mouse event with the button down: the drag session starts from it
     __weak Fenster *ich = self;
     [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskLeftMouseDown | NSEventMaskLeftMouseDragged)
                                           handler:^NSEvent *(NSEvent *e) { ich.letzteMaus = e; return e; }];
@@ -75,18 +84,18 @@ static NSString *datenOrdner(void) {
     NSMenu *haupt = [[NSMenu alloc] init];
     NSMenuItem *appEintrag = [[NSMenuItem alloc] init]; [haupt addItem:appEintrag];
     NSMenu *appMenue = [[NSMenu alloc] init];
-    [appMenue addItemWithTitle:@"Open Libary beenden" action:@selector(terminate:) keyEquivalent:@"q"];
+    [appMenue addItemWithTitle:L(@"Quit Open Libary", @"Open Libary beenden") action:@selector(terminate:) keyEquivalent:@"q"];
     appEintrag.submenu = appMenue;
     NSMenuItem *bearbeiten = [[NSMenuItem alloc] init]; [haupt addItem:bearbeiten];
-    NSMenu *bm = [[NSMenu alloc] initWithTitle:@"Bearbeiten"];
-    [bm addItemWithTitle:@"Ausschneiden" action:@selector(cut:) keyEquivalent:@"x"];
-    [bm addItemWithTitle:@"Kopieren" action:@selector(copy:) keyEquivalent:@"c"];
-    [bm addItemWithTitle:@"Einsetzen" action:@selector(paste:) keyEquivalent:@"v"];
-    [bm addItemWithTitle:@"Alles auswählen" action:@selector(selectAll:) keyEquivalent:@"a"];
+    NSMenu *bm = [[NSMenu alloc] initWithTitle:L(@"Edit", @"Bearbeiten")];
+    [bm addItemWithTitle:L(@"Cut", @"Ausschneiden") action:@selector(cut:) keyEquivalent:@"x"];
+    [bm addItemWithTitle:L(@"Copy", @"Kopieren") action:@selector(copy:) keyEquivalent:@"c"];
+    [bm addItemWithTitle:L(@"Paste", @"Einsetzen") action:@selector(paste:) keyEquivalent:@"v"];
+    [bm addItemWithTitle:L(@"Select All", @"Alles auswählen") action:@selector(selectAll:) keyEquivalent:@"a"];
     bearbeiten.submenu = bm;
     NSMenuItem *ansicht = [[NSMenuItem alloc] init]; [haupt addItem:ansicht];
-    NSMenu *am = [[NSMenu alloc] initWithTitle:@"Ansicht"];
-    NSMenuItem *neu = [am addItemWithTitle:@"Neu laden" action:@selector(neuLaden) keyEquivalent:@"r"];
+    NSMenu *am = [[NSMenu alloc] initWithTitle:L(@"View", @"Ansicht")];
+    NSMenuItem *neu = [am addItemWithTitle:L(@"Reload", @"Neu laden") action:@selector(neuLaden) keyEquivalent:@"r"];
     neu.target = self;
     ansicht.submenu = am;
     [NSApp setMainMenu:haupt];
@@ -100,16 +109,18 @@ static NSString *datenOrdner(void) {
 - (void)serverStarten {
     NSFileManager *fm = [NSFileManager defaultManager];
     BOOL paket = [fm isExecutableFileAtPath:paketPython()] && [fm fileExistsAtPath:paketCode()];
-    [self seite:@"Open Libary startet …" text:(paket
-        ? @"Beim ersten Start fragt macOS nach dem Zugriff auf Ordner: <b>Erlauben</b>, dann geht es weiter."
-        : @"Fragt macOS nach dem Zugriff auf „Dokumente“: <b>Erlauben</b>, dann geht es weiter.")];
+    [self seite:L(@"Open Libary is starting …", @"Open Libary startet …") text:(paket
+        ? L(@"On the first start macOS asks for access to folders: <b>Allow</b>, then it continues.",
+            @"Beim ersten Start fragt macOS nach dem Zugriff auf Ordner: <b>Erlauben</b>, dann geht es weiter.")
+        : L(@"If macOS asks for access to “Documents”: <b>Allow</b>, then it continues.",
+            @"Fragt macOS nach dem Zugriff auf „Dokumente“: <b>Erlauben</b>, dann geht es weiter."))];
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSTask *p = [[NSTask alloc] init];
         p.executableURL = [NSURL fileURLWithPath:@"/bin/bash"];
         if (paket) {
-            // im Hintergrund, bleibt nach dem Schließen des Fensters. --ersetzen: derselbe Stand läuft schon -> nichts,
-            // alter Stand dieser App (Update) -> ersetzen. -B: keine .pyc ins signierte Paket schreiben (sie liegen
-            // vorkompiliert bei), -E -s: keine PYTHON*-Variablen und keine Nutzer-Pakete von außen
+            // in the background, keeps running after the window closes. --ersetzen: the same version already runs ->
+            // nothing; an older version of this app (update) -> replace it. -B: no .pyc into the signed bundle (they
+            // ship precompiled), -E -s: no PYTHON* variables and no user packages from outside
             NSString *befehl = @"nohup \"$OL_PY\" -B -E -s -X utf8 \"$OL_CODE\" --port 8765 --ohne-browser --ersetzen "
                                @">> \"$OL_LOG\" 2>&1 < /dev/null &";
             p.arguments = @[@"-c", befehl];
@@ -129,7 +140,7 @@ static NSString *datenOrdner(void) {
     });
 }
 
-// Server abfragen, bis er antwortet (beim ersten Start wartet er auf die macOS-Freigabe), höchstens 5 Minuten
+// Ask the server until it answers (on the first start it waits for the macOS permission), at most 5 minutes
 - (void)warten {
     self.versuche += 1;
     NSMutableURLRequest *anfrage = [NSMutableURLRequest requestWithURL:
@@ -141,8 +152,9 @@ static NSString *datenOrdner(void) {
             if ([antwort isKindOfClass:[NSHTTPURLResponse class]] && ((NSHTTPURLResponse *)antwort).statusCode == 200) {
                 [self neuLaden];
             } else if (self.versuche > 100) {
-                [self seite:@"Der Open Libary-Server startet nicht."
-                       text:@"Den Grund nennt das Protokoll: <code>~/Library/Logs/openlibary.log</code> (Konsole-App oder Finder)."];
+                [self seite:L(@"The Open Libary server does not start.", @"Der Open Libary-Server startet nicht.")
+                       text:L(@"The log names the reason: <code>~/Library/Logs/openlibary.log</code> (Console app or Finder).",
+                              @"Den Grund nennt das Protokoll: <code>~/Library/Logs/openlibary.log</code> (Konsole-App oder Finder).")];
             } else {
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                                dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{ [self warten]; });
@@ -158,7 +170,7 @@ static NSString *datenOrdner(void) {
     [self.web loadHTMLString:html baseURL:nil];
 }
 
-// Fremde Adressen nie im Fenster der App (es hat die Brücken ziehen, finder, ordner): in den Standardbrowser
+// Foreign addresses never open in the app window (it has the bridges ziehen, finder, ordner): use the default browser
 - (void)webView:(WKWebView *)w decidePolicyForNavigationAction:(WKNavigationAction *)a
     decisionHandler:(void (^)(WKNavigationActionPolicy))entscheiden {
     NSURL *u = a.request.URL;
@@ -172,21 +184,22 @@ static NSString *datenOrdner(void) {
     entscheiden(WKNavigationActionPolicyAllow);
 }
 
-// Links mit target=_blank (Quellen, Freesound-Login, Looperman) im Standardbrowser öffnen
+// Links with target=_blank (sources, Freesound sign-in, Looperman) open in the default browser
 - (WKWebView *)webView:(WKWebView *)w createWebViewWithConfiguration:(WKWebViewConfiguration *)c
    forNavigationAction:(WKNavigationAction *)a windowFeatures:(WKWindowFeatures *)f {
     if (a.request.URL) [[NSWorkspace sharedWorkspace] openURL:a.request.URL];
     return nil;
 }
 
-// Eigene Ordner: macOS-Dialog als Blatt am Fenster, die gewählten Pfade gehen an window.ordnerGewaehlt der Seite
+// Your folders: macOS dialog as a sheet on the window; the chosen paths go to the page's window.ordnerGewaehlt
 - (void)ordnerWaehlen {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseDirectories = YES;
     panel.canChooseFiles = NO;
     panel.allowsMultipleSelection = YES;
-    panel.prompt = @"Hinzufügen";
-    panel.message = @"Sample-Ordner für Open Libary wählen (Drum Kits, Packs, eigene Aufnahmen)";
+    panel.prompt = L(@"Add", @"Hinzufügen");
+    panel.message = L(@"Choose sample folders for Open Libary (drum kits, packs, your own recordings)",
+                      @"Sample-Ordner für Open Libary wählen (Drum Kits, Packs, eigene Aufnahmen)");
     [panel beginSheetModalForWindow:self.fenster completionHandler:^(NSModalResponse antwort) {
         if (antwort != NSModalResponseOK) return;
         NSMutableArray *pfade = [NSMutableArray array];
@@ -201,12 +214,17 @@ static NSString *datenOrdner(void) {
 
 - (void)userContentController:(WKUserContentController *)u didReceiveScriptMessage:(WKScriptMessage *)m {
     if ([m.name isEqualToString:@"ordner"]) { [self ordnerWaehlen]; return; }
+    if ([m.name isEqualToString:@"sprache"] && [m.body isKindOfClass:[NSString class]]) {
+        BOOL neu = [m.body isEqualToString:@"de"];
+        if (neu != deutsch) { deutsch = neu; [self menueBauen]; }
+        return;
+    }
     if ([m.name isEqualToString:@"kopieren"] && [m.body isKindOfClass:[NSString class]]) {
         [[NSPasteboard generalPasteboard] clearContents];
         [[NSPasteboard generalPasteboard] setString:m.body forType:NSPasteboardTypeString];
         return;
     }
-    // Im Finder zeigen: die App selbst, weil "open -R" aus einem im Hintergrund gestarteten Server still nichts tut
+    // Show in Finder: done by the app itself, because "open -R" from a server started in the background silently does nothing
     if ([m.name isEqualToString:@"finder"] && [m.body isKindOfClass:[NSString class]]) {
         NSString *pfad = m.body;
         BOOL ordner = NO;
@@ -221,7 +239,8 @@ static NSString *datenOrdner(void) {
         if ([p isKindOfClass:[NSString class]] && [[NSFileManager defaultManager] fileExistsAtPath:p])
             [urls addObject:[NSURL fileURLWithPath:p]];
     if (urls.count == 0) return;
-    // Ziehen aus der Netz-Liste lädt erst: ist die Taste inzwischen los, kein Ziehbild, das am Zeiger hängen bliebe
+    // Dragging from the Web list downloads first: if the button is already released, no drag image that would stick
+    // to the pointer
     if (([NSEvent pressedMouseButtons] & 1) == 0) {
         [self.web evaluateJavaScript:@"window.ziehenVerpasst && ziehenVerpasst()" completionHandler:nil];
         return;

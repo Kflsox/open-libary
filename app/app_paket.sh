@@ -1,36 +1,37 @@
 #!/bin/bash
-# Fertige Mac-App für Freunde (03.11.2026, „max kompi“): Universal-App für Apple-Chip (ab macOS 11) und Intel (ab
-# macOS 10.15). Hülle in Objective-C (app/main.m), je Architektur ein eigenständiges Python 3.12 mit numpy und
-# soundfile (leichte Messung, Audio ohne ffmpeg), Code unter Resources. Kein Terminal und keine Command Line Tools
-# beim Empfänger; Nutzerdaten unter ~/Library/Application Support/Open Libary.
-#   bash app/app_paket.sh [Zielordner]      (Standard ~/Downloads)
-# Die Pythons holt app/pythons_holen.sh nach ~/Library/Caches/OpenLibary-bau (python-build-standalone, PSF-Lizenz;
-# numpy BSD, soundfile BSD mit libsndfile LGPL). Ohne Apple-Entwicklerkonto ist die App nur ad hoc signiert: beim ersten
-# Öffnen einmal „Dennoch öffnen“ (steht in ANLEITUNG.md).
+# Packaged Mac app for friends (built for maximum compatibility): universal app for Apple silicon (macOS 11 and later)
+# and Intel (macOS 10.15 and later). Shell in Objective-C (app/main.m), one standalone Python 3.12 per architecture with
+# numpy and soundfile (light analysis, audio without ffmpeg), code under Resources. No Terminal and no Command Line
+# Tools needed on the recipient's Mac; user data under ~/Library/Application Support/Open Libary.
+#   bash app/app_paket.sh [target folder]      (default ~/Downloads)
+# app/pythons_holen.sh fetches the Pythons into ~/Library/Caches/OpenLibary-bau (python-build-standalone, PSF license;
+# numpy BSD, soundfile BSD with libsndfile LGPL). Without an Apple developer account the app is only ad hoc signed: on
+# first launch click "Open Anyway" once (explained in GUIDE.md).
 set -euo pipefail
 HIER="$(cd "$(dirname "$0")/.." && pwd)"
 ZIEL="${1:-$HOME/Downloads}"
 BAU="${OPENLIBARY_BAU:-$HOME/Library/Caches/OpenLibary-bau}"
 for a in aarch64 x86_64; do
-  [ -x "$BAU/py-$a-apple-darwin/python/bin/python3.12" ] || { echo "Python für $a fehlt: erst bash app/pythons_holen.sh"; exit 1; }
+  [ -x "$BAU/py-$a-apple-darwin/python/bin/python3.12" ] || { echo "Python for $a is missing: run bash app/pythons_holen.sh first"; exit 1; }
 done
 TMP="$(mktemp -d)"
 APP="$TMP/Open Libary.app"
 R="$APP/Contents/Resources"
 mkdir -p "$APP/Contents/MacOS" "$R/openlibary/stile"
 
-# Hülle: Universal-Binary
+# Shell: universal binary
 clang -fobjc-arc -O2 -target arm64-apple-macos11 -o "$TMP/ol-arm64" "$HIER/app/main.m" -framework Cocoa -framework WebKit
 clang -fobjc-arc -O2 -target x86_64-apple-macos10.15 -o "$TMP/ol-x86_64" "$HIER/app/main.m" -framework Cocoa -framework WebKit
 lipo -create -output "$APP/Contents/MacOS/Open Libary" "$TMP/ol-arm64" "$TMP/ol-x86_64"
 
-# Code (ohne Nutzerdaten und ohne gehoer-Teile)
-cp "$HIER"/{openlibary,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe}.py "$R/openlibary/"
-cp "$HIER/seite.html" "$HIER/ANLEITUNG.md" "$R/openlibary/"
+# Code (no user data and no gehoer parts); lang/ holds the translations and must sit next to i18n.py
+cp "$HIER"/{openlibary,i18n,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe}.py "$R/openlibary/"
+cp "$HIER/seite.html" "$HIER/GUIDE.md" "$R/openlibary/"
 cp "$HIER"/stile/*.css "$R/openlibary/stile/"
+cp -R "$HIER/lang" "$R/openlibary/"
 cp "$HIER/app/AppIcon.icns" "$R/AppIcon.icns"
 
-# je Architektur ein Python, ohne Tk, Header, pip, Tests (auch die von numpy)
+# one Python per architecture, without Tk, headers, pip, tests (numpy's too)
 for paar in "aarch64:arm64" "x86_64:x86_64"; do
   quelle="$BAU/py-${paar%%:*}-apple-darwin/python"; ziel="$R/python-${paar##*:}"
   mkdir -p "$ziel/bin" "$ziel/lib"
@@ -40,7 +41,7 @@ for paar in "aarch64:arm64" "x86_64:x86_64"; do
     --exclude test --exclude tests --exclude __pycache__ --exclude 'config-*' --exclude pydoc_data \
     --exclude 'pip' --exclude 'pip-*' "$quelle/lib/python3.12" "$ziel/lib/"
 done
-# vorkompilieren: die App startet Python mit -B (schreibt nichts ins signierte Paket), liest aber vorhandene .pyc
+# precompile: the app starts Python with -B (writes nothing into the signed bundle) but reads existing .pyc files
 PYC="$( (ls -d "$HOME"/.local/share/uv/python/cpython-3.12*-macos-aarch64-none/bin/python3.12 2>/dev/null || true) | tail -1)"
 [ -n "$PYC" ] || PYC="$(command -v python3.12 || true)"
 if [ -n "$PYC" ]; then
@@ -59,7 +60,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>Open Libary</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundleShortVersionString</key><string>1.1</string>
+  <key>CFBundleShortVersionString</key><string>1.2</string>
   <key>LSMinimumSystemVersion</key><string>10.15</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
@@ -69,11 +70,11 @@ codesign --force --deep --sign - "$APP" >/dev/null 2>&1
 codesign --verify --deep "$APP"
 mkdir -p "$ZIEL"
 NAME="Open Libary $(date +%Y-%m-%d) Mac.zip"
-# im Zip ein Ordner mit der App und der Anleitung daneben (öffnet sich mit Doppelklick in TextEdit)
+# in the zip: one folder with the app and the guide next to it (a double-click opens it in TextEdit)
 mkdir "$TMP/Open Libary"
 mv "$APP" "$TMP/Open Libary/"
-cp "$HIER/ANLEITUNG.md" "$TMP/Open Libary/Anleitung.md"
+cp "$HIER/GUIDE.md" "$TMP/Open Libary/Guide.md"
 (cd "$TMP" && ditto -c -k --keepParent "Open Libary" "$ZIEL/$NAME")
 du -sh "$TMP/Open Libary/Open Libary.app" | awk '{print "App: " $1}'
 rm -rf "$TMP"
-echo "Paket: $ZIEL/$NAME"
+echo "Package: $ZIEL/$NAME"

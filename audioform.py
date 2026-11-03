@@ -1,12 +1,12 @@
-"""Audioformate für alle Systeme (03.11.2026, „max kompi“).
+"""Audio formats for all systems.
 
-- AIFF nach WAV ohne jede Abhängigkeit: Browser unter Windows und Linux spielen kein AIFF, und dort fehlt oft ffmpeg.
-  Unkomprimiertes AIFF und AIFC (NONE, twos, sowt, fl32, fl64), 8 bis 32 Bit.
-- wav_aus: beliebige Datei als WAV, für DAWs, die kein OGG, FLAC oder MP3 nehmen (Logic, Pro Tools). Reihenfolge:
-  eigener AIFF-Wandler, soundfile (in den fertigen Apps dabei), ffmpeg.
-- ogg_in_wav: FL Studio legt seine Werkssamples als WAV mit Ogg Vorbis darin ab (Formatkennung 0x674F und
-  Verwandte). Weder Browser noch libsndfile noch ffmpeg öffnen das direkt; der Ogg-Strom wird herausgelöst und dann
-  normal dekodiert. Ohne das blieben genau die Samples der meistgenutzten DAW stumm.
+- AIFF to WAV without any dependency: browsers on Windows and Linux do not play AIFF, and ffmpeg is often missing
+  there. Uncompressed AIFF and AIFC (NONE, twos, sowt, fl32, fl64), 8 to 32 bit.
+- wav_aus: any file as WAV, for DAWs that do not take OGG, FLAC or MP3 (Logic, Pro Tools). Order: own AIFF
+  converter, soundfile (included in the packaged apps), ffmpeg.
+- ogg_in_wav: FL Studio stores its factory samples as WAV with Ogg Vorbis inside (format tag 0x674F and
+  relatives). Neither browsers nor libsndfile nor ffmpeg open that directly; the Ogg stream is extracted and then
+  decoded normally. Without this, exactly the samples of the most used DAW would stay silent.
 """
 import array
 import math
@@ -16,12 +16,14 @@ import struct
 import subprocess
 import sys
 
+from i18n import tx
+
 
 _OGG_IN_WAV = {0x674F, 0x6750, 0x6751, 0x676F, 0x6770, 0x6771}
 
 
 def ist_ogg_in_wav(pfad):
-    """Nur der Kopf: WAV mit Ogg-Vorbis-Kennung? (für die Wiedergabe, ohne den ganzen Strom zu lesen)"""
+    """Header only: WAV with an Ogg Vorbis tag? (for playback, without reading the whole stream)"""
     if not str(pfad).lower().endswith((".wav", ".wave")):
         return False
     try:
@@ -44,8 +46,8 @@ def ist_ogg_in_wav(pfad):
 
 
 def ogg_kopf(pfad):
-    """OGG (Vorbis oder Opus): -> (Sekunden, Rate, Kanäle) aus dem Kennungsblock und der Granule-Position der letzten
-    Seite, ohne zu dekodieren; None, wenn nicht lesbar. Unter Windows fehlt meist ffprobe, sonst bliebe die Länge leer."""
+    """OGG (Vorbis or Opus): -> (seconds, rate, channels) from the identification header and the granule position of
+    the last page, without decoding; None if unreadable. Windows usually lacks ffprobe, so the length would stay empty."""
     try:
         with open(pfad, "rb") as f:
             anfang = f.read(4096)
@@ -64,7 +66,7 @@ def ogg_kopf(pfad):
     elif j >= 0 and j + 16 <= len(anfang):
         kanaele, vorlauf = anfang[j + 9], struct.unpack("<H", anfang[j + 10:j + 12])[0]
         rate = struct.unpack("<I", anfang[j + 12:j + 16])[0] or 48000
-        takt = 48000                                   # Opus zählt die Granule immer in 48 kHz
+        takt = 48000                                   # Opus always counts the granule in 48 kHz
     else:
         return None
     pos = ende.rfind(b"OggS")
@@ -78,7 +80,7 @@ def ogg_kopf(pfad):
 
 
 def ogg_in_wav(pfad):
-    """Ogg-Vorbis-Strom aus einem WAV-Container -> bytes, sonst None (auch bei jedem normalen WAV)."""
+    """Ogg Vorbis stream from a WAV container -> bytes, otherwise None (also for every normal WAV)."""
     if not str(pfad).lower().endswith((".wav", ".wave")):
         return None
     try:
@@ -115,8 +117,8 @@ def ogg_in_wav(pfad):
 
 
 def ogg_in_wav_dauer(pfad, rate):
-    """Sekunden eines FL-Werksamples: Granule-Position der letzten Ogg-Seite (= Zahl der Frames) durch die Rate.
-    Aus der Größe des data-Blocks gerechnet käme rund ein Siebtel heraus (Vorbis ist komprimiert)."""
+    """Seconds of an FL factory sample: granule position of the last Ogg page (= number of frames) divided by the rate.
+    Computed from the size of the data chunk it would come out at about a seventh (Vorbis is compressed)."""
     ogg = ogg_in_wav(pfad)
     if not ogg or not rate:
         return None
@@ -128,8 +130,8 @@ def ogg_in_wav_dauer(pfad, rate):
 
 
 def _vorbis_seiten(daten):
-    """Nur die Seiten des Vorbis-Stroms: FL Studio legt in manche Dateien einen zweiten Datenstrom (andere
-    Seriennummer, kein Vorbis), und hinter dem Strom stehen teils Fremdblöcke (smpl) im data-Block."""
+    """Only the pages of the Vorbis stream: FL Studio puts a second stream into some files (another serial number,
+    not Vorbis), and some have foreign chunks (smpl) after the stream inside the data chunk."""
     seiten, vorbis, pos = [], set(), 0
     while pos + 27 <= len(daten) and daten[pos:pos + 4] == b"OggS":
         segmente = daten[pos + 26]
@@ -152,7 +154,7 @@ def _vorbis_seiten(daten):
 
 
 def _extended(b):
-    """80-Bit-IEEE (AIFF-Abtastrate) -> float."""
+    """80-bit IEEE (AIFF sample rate) -> float."""
     exp = ((b[0] & 0x7F) << 8) | b[1]
     mant = int.from_bytes(b[2:10], "big")
     if exp == 0 and mant == 0:
@@ -162,8 +164,8 @@ def _extended(b):
 
 
 def aiff_kopf(pfad):
-    """-> (Sekunden, Rate, Kanäle, Bits) aus dem COMM-Block, ohne die Audiodaten zu lesen; None, wenn kein AIFF.
-    Ersetzt aifc beim Einlesen (das Modul fehlt ab Python 3.13 und kennt kein AIFC mit fl32)."""
+    """-> (seconds, rate, channels, bits) from the COMM chunk, without reading the audio data; None if not AIFF.
+    Replaces aifc when scanning (the module is gone since Python 3.13 and does not know AIFC with fl32)."""
     try:
         with open(pfad, "rb") as f:
             kopf = f.read(12)
@@ -190,11 +192,11 @@ def aiff_kopf(pfad):
 
 
 def aiff_zu_wav(quelle, ziel):
-    """Unkomprimiertes AIFF/AIFC als WAV schreiben. Löst ValueError aus bei komprimiertem AIFC (dann ffmpeg)."""
+    """Write uncompressed AIFF/AIFC as WAV. Raises ValueError for compressed AIFC (then ffmpeg)."""
     with open(quelle, "rb") as f:
         kopf = f.read(12)
         if len(kopf) < 12 or kopf[:4] != b"FORM" or kopf[8:12] not in (b"AIFF", b"AIFC"):
-            raise ValueError("kein AIFF")
+            raise ValueError("not AIFF")
         komm = daten = None
         art = b"NONE"
         while True:
@@ -219,19 +221,19 @@ def aiff_zu_wav(quelle, ziel):
             if groesse % 2:
                 f.seek(1, 1)
     if not komm or daten is None:
-        raise ValueError("AIFF ohne COMM oder SSND")
+        raise ValueError("AIFF without COMM or SSND")
     kanaele, frames, bits, rate = komm
     breite = (bits + 7) // 8
     gleitend = art in (b"fl32", b"FL32", b"fl64", b"FL64")
     if art not in (b"NONE", b"twos", b"sowt") and not gleitend:
-        raise ValueError(f"komprimiertes AIFC ({art.decode(errors='replace')})")
+        raise ValueError(f"compressed AIFC ({art.decode(errors='replace')})")
     if gleitend:
         breite = 8 if art.lower() == b"fl64" else 4
         bits = breite * 8
     daten = daten[: frames * kanaele * breite]
-    if art != b"sowt":                      # AIFF ist Big Endian, WAV Little Endian
+    if art != b"sowt":                      # AIFF is big endian, WAV little endian
         if breite == 1:
-            daten = bytes((b + 128) & 0xFF for b in daten)        # 8 Bit: AIFF mit, WAV ohne Vorzeichen
+            daten = bytes((b + 128) & 0xFF for b in daten)        # 8 bit: AIFF signed, WAV unsigned
         elif breite in (2, 4, 8):
             typ = {2: "h", 4: "i" if array.array("i").itemsize == 4 else "l", 8: "d"}[breite]
             a = array.array(typ)
@@ -259,7 +261,7 @@ def aiff_zu_wav(quelle, ziel):
 
 
 def wav_aus(quelle, ziel, ffmpeg=None):
-    """Datei als WAV nach ziel. -> ziel. Löst RuntimeError aus, wenn kein Weg geht."""
+    """File as WAV to ziel. -> ziel. Raises RuntimeError when no way works."""
     endung = os.path.splitext(quelle)[1].lower()
     if endung in (".aif", ".aiff", ".aifc"):
         try:
@@ -268,10 +270,10 @@ def wav_aus(quelle, ziel, ffmpeg=None):
         except ValueError:
             pass
     letzter = None
-    ogg = ogg_in_wav(quelle)           # FL-Werkssample: Ogg-Strom statt der Datei dekodieren
+    ogg = ogg_in_wav(quelle)           # FL factory sample: decode the Ogg stream instead of the file
     try:
         import io
-        import soundfile as sf        # fertige Apps: libsndfile liest WAV, AIFF, FLAC, OGG, MP3
+        import soundfile as sf        # packaged apps: libsndfile reads WAV, AIFF, FLAC, OGG, MP3
         with sf.SoundFile(io.BytesIO(ogg) if ogg else quelle) as f:
             sub = "PCM_24" if f.subtype in ("PCM_24", "PCM_32", "FLOAT", "DOUBLE") else "PCM_16"
             tmp = str(ziel) + ".teil.wav"
@@ -298,4 +300,5 @@ def wav_aus(quelle, ziel, ffmpeg=None):
             os.replace(tmp, ziel)
             return ziel
         letzter = r.stderr.decode(errors="replace")[-200:]
-    raise RuntimeError(f"Wandeln nach WAV ging nicht ({letzter or 'weder soundfile noch ffmpeg da'})")
+    raise RuntimeError(tx("Converting to WAV failed ({reason})",
+                          reason=letzter or tx("neither soundfile nor ffmpeg is available")))

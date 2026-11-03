@@ -1,9 +1,9 @@
-"""Leichte Messung, Python-Fassung (03.11.2026, „max kompi“): Tempo, Tonart, Grundton und grober Klang-Fingerabdruck
-ohne gehoer, auf Mac, Windows und Linux gleich. Braucht numpy und soundfile (liest WAV, AIFF, FLAC, OGG, MP3 ohne
-ffmpeg); die fertigen Apps bringen beides mit. Dasselbe Verfahren wie app/leichtmessen.swift (dort die Begründungen),
-das auf dem Mac ohne numpy als Rückfall bleibt.
+"""Light analysis, Python version: tempo, key, root note and a rough sound fingerprint without gehoer, the same on
+Mac, Windows and Linux. Needs numpy and soundfile (reads WAV, AIFF, FLAC, OGG, MP3 without ffmpeg); the packaged apps
+include both. Same method as app/leichtmessen.swift (the reasoning is there), which stays as the fallback on a Mac
+without numpy.
 
-Aufruf: Pfade zeilenweise auf stdin, je Datei eine JSON-Zeile auf stdout (Felder wie die Swift-Fassung).
+Usage: paths line by line on stdin, one JSON line per file on stdout (fields as in the Swift version).
 """
 import io
 import json
@@ -14,7 +14,7 @@ import sys
 import numpy as np
 import soundfile as sf
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))     # läuft mit -I: eigener Ordner für audioform
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))     # runs with -I: add our own folder for audioform
 import audioform      # noqa: E402
 
 DUR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
@@ -22,7 +22,7 @@ MOLL = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.3
 
 
 def _oeffnen(pfad):
-    """FL-Werkssamples (Ogg Vorbis im WAV) öffnet libsndfile nicht direkt: dann den Ogg-Strom."""
+    """libsndfile does not open FL factory samples (Ogg Vorbis inside WAV) directly: then use the Ogg stream."""
     try:
         return sf.SoundFile(pfad)
     except Exception:
@@ -38,7 +38,7 @@ def laden(pfad, max_s=30.0):
         dauer = f.frames / sr if f.frames > 0 else None
         x = f.read(frames=int(max_s * sr), dtype="float32", always_2d=True)
     if x.size == 0:
-        raise ValueError("leer")
+        raise ValueError("empty")
     x = x.mean(axis=1)
     faktor = 4 if sr >= 88000 else 2 if sr >= 44000 else 1
     if faktor > 1:
@@ -112,7 +112,7 @@ def tonart(x, sr):
     n, hop = 8192, 4096
     if len(x) <= n:
         return None
-    mag = spektren(x, n, hop).sum(axis=0)          # über die Zeit summiert, wie die Swift-Fassung je Rahmen
+    mag = spektren(x, n, hop).sum(axis=0)          # summed over time, like the Swift version per frame
     chroma = np.zeros(12)
     for p in range(36, 97):
         f = 440 * 2 ** ((p - 69) / 12)
@@ -250,7 +250,7 @@ def messen(pfad):
             rund = round(g[0])
             e["grundton_midi"], e["grundton_cent"] = int(rund), int(round((g[0] - rund) * 100))
             e["tonhaltig"] = round(g[1], 2)
-    except Exception as ex:      # eine kaputte Datei hält den Lauf nicht auf
+    except Exception as ex:      # a broken file does not stop the run
         e = {"pfad": pfad, "fehler": f"{type(ex).__name__}: {ex}"[:200]}
     for k in ("dauer", "bpm", "bpm_sicher", "ton_sicher", "tonhaltig"):
         if k in e:
@@ -260,7 +260,7 @@ def messen(pfad):
 
 def main():
     np.seterr(all="ignore")
-    # Pfade und JSON immer UTF-8: unter Windows wären stdin und stdout sonst cp1252 (Umlaute in Pfaden gingen kaputt)
+    # Paths and JSON always UTF-8: on Windows stdin and stdout would be cp1252 (non-ASCII paths would break)
     sys.stdin.reconfigure(encoding="utf-8")
     sys.stdout.reconfigure(encoding="utf-8")
     for zeile in sys.stdin:

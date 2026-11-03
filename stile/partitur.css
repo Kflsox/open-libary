@@ -1,5 +1,5 @@
-/* Partitur: Notenpapier. Warmes Papierweiß, Tusche-Schwarz, Zinnober als einzige Farbe. Namen in Serifenschrift
-   wie auf einem gedruckten Programmheft; der Player ist ein schwarzer Balken wie die Fußzeile eines Notenblatts. */
+/* Score: music paper. Warm paper white, ink black, vermilion as the only color. Names in a serif face
+   like a printed concert program; the player is a black bar like the footer of a sheet of music. */
 :root{
   --grund:#f1ede3; --flaeche:#e9e4d6; --zeile:#e2dccb; --linie:#d6cfbd; --linie2:#bfb7a3;
   --text:#1b1915; --leise:#6b6457; --sehrleise:#958d7c;
@@ -21,7 +21,7 @@ aside h3{font-family:var(--schrift-name);font-style:italic;font-weight:400;text-
 .chip{border:none;padding:2px 5px}
 .chip:hover{background:var(--flaeche)}
 .chip.raus{background:none}
-/* linke Spalte (24.10.2026): Köpfe kursiv in der Serifenschrift wie die Satzbezeichnungen, Auswahl in Zinnober */
+/* left column: headings in serif italics like movement titles, selection in vermilion */
 #filter{--sp-text:var(--text); --sp-leise:var(--leise); --sp-blass:#8f8778; --sp-hover:var(--flaeche); --sp-ort-an:var(--zeile);
   --sp-marke:var(--flaeche); --sp-spur:var(--flaeche); --sp-daumen:var(--text); --sp-daumen-text:var(--grund); --sp-linie:var(--linie)}
 #filter .kopf{font-family:var(--schrift-name);font-style:italic;font-weight:400;font-size:13.5px;color:var(--text)}
@@ -32,10 +32,10 @@ tbody tr.aktiv{box-shadow:inset 3px 0 0 var(--signal)}
 .liz{border:none;padding:0;font-variant:small-caps;font-size:12px;letter-spacing:.04em}
 #jetzt .t{font-size:17px;font-style:italic;font-weight:400}
 
-/* Mit Liquid Glass (Klasse glas, Material aus glasschicht.css): Kopf und Player als warmes Papierglas mit Tusche-Schrift,
-   Zinnober bleibt die eine Farbe (Abspielen, gespielte Welle). Der schwarze Fußbalken wird dafür hell. */
+/* With Liquid Glass (class glas, material from glasschicht.css): header and player as warm paper glass with ink text,
+   vermilion stays the one color (Play, played waveform). The black bottom bar turns light for this. */
 html.glas{
-  --spalte-rand:var(--text);     /* der Tuschestrich der Spalte läuft im Grund weiter, hinter Kopf und Player */
+  --spalte-rand:var(--text);     /* the column's ink line continues in the background, behind header and player */
   --glas:rgba(244,240,230,.76); --glas-deckend:#f1ede3; --glas-dicht:rgba(245,241,232,.95); --glas-probe:#f1ede3;
   --glas-schatten:0 8px 26px rgba(60,40,15,.14),0 1px 3px rgba(60,40,15,.10);
   --glas-innen:inset 0 .5px 0 rgba(255,253,246,.9),inset 0 0 0 .5px rgba(255,253,246,.4);

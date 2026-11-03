@@ -1,14 +1,16 @@
-# Nur was hier ausdrücklich freigegeben ist, kommt ins Repo. Alles andere in diesem Ordner sind Nutzerdaten
-# (Favoriten, Verlauf, eigene Ordner, Downloads), Arbeitsnotizen oder Bauergebnisse und bleibt auf dem Rechner.
+# Only what is explicitly allowed here goes into the repo. Everything else in this folder is user data
+# (favorites, history, your folders, downloads), working notes or build output and stays on the computer.
 /*
 !/.gitignore
 !/.gitattributes
 !/.github/
 !/LICENSE
 !/README.md
-!/DRITTANBIETER.md
-!/ANLEITUNG.md
+!/THIRD_PARTY.md
+!/GUIDE.md
 !/openlibary.py
+!/i18n.py
+!/lang/
 !/netz.py
 !/ordner.py
 !/leicht.py
@@ -28,7 +30,7 @@
 !/app/
 !/tests/
 
-# im App-Ordner: Bauergebnisse und Archiv
+# in the app folder: build output and archive
 /app/leichtmessen
 /app/alt/
 /app/fenster/node_modules/

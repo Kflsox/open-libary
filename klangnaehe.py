@@ -1,8 +1,8 @@
-"""Klang-Fingerabdruck im Server (Musiker-Test 03.11.2026): Brücke zu klang_dienst.py (Nachbarn) und klang_vektoren.py
-(Rechnen). Beide laufen in der gehoer-Umgebung; fehlt sie (andere Rechner), ist verfuegbar() falsch und „Ähnliche“
-bleibt beim Vergleich nach Art, Tempo und Tonart.
+"""Sound fingerprint in the server: bridge to klang_dienst.py (neighbors) and klang_vektoren.py (computing). Both run
+in the gehoer environment; without it (other computers) verfuegbar() is false and “Similar” keeps comparing by type,
+tempo and key.
 
-Schlüssel einer Datei: ihre md5, ohne md5 „pfad:<Pfad>“ (wie klang_vektoren.py).
+Key of a file: its md5, without md5 “pfad:<path>” (as in klang_vektoren.py).
 """
 import collections
 import hashlib
@@ -17,19 +17,21 @@ import threading
 import time
 from pathlib import Path
 
+from i18n import tx
+
 try:
-    import fcntl              # nur Mac und Linux; den Klang-Fingerabdruck gibt es nur mit gehoer (nicht auf Windows)
+    import fcntl              # Mac and Linux only; the sound fingerprint exists only with gehoer (not on Windows)
 except ImportError:
     fcntl = None
 
 HIER = Path(__file__).resolve().parent
-RUHE_S = 900            # Dienst nach 15 min ohne Anfrage beenden (hält die Vektoren im Speicher, rund 130 MB)
-ANTWORT_S = 20          # längste Wartezeit auf den Dienst (der erste Aufruf lädt alle Vektoren)
-MD5_BIS = 100 << 20     # wie ordner.py: größere Dateien ohne md5
+RUHE_S = 900            # stop the service after 15 min without a request (it keeps the vectors in memory, about 130 MB)
+ANTWORT_S = 20          # longest wait for the service (the first call loads all vectors)
+MD5_BIS = 100 << 20     # as in ordner.py: larger files get no md5
 
 
 class DienstFehler(Exception):
-    """Der Klang-Dienst antwortet nicht oder falsch (nicht: „kein Fingerabdruck“)."""
+    """The sound service does not answer or answers wrongly (not: “no fingerprint”)."""
 
 
 def schluessel(md5, pfad):
@@ -53,15 +55,15 @@ class Klang:
     def __init__(self, python, gehoer_code, db, prio, umgebung):
         self.python, self.gehoer_code, self.db = Path(python), Path(gehoer_code), Path(db)
         self.prio, self.umgebung = list(prio), dict(umgebung)
-        self.lock = threading.Lock()            # stdin/stdout des Dienstes: eine Anfrage zugleich
+        self.lock = threading.Lock()            # stdin/stdout of the service: one request at a time
         self.proc, self.zuletzt = None, 0.0
-        self.cache = collections.OrderedDict()  # (schluessel, stempel) -> {schluessel: kosinus} oder None
-        self.rlock = threading.Lock()           # Rechnen: höchstens ein Lauf
+        self.cache = collections.OrderedDict()  # (schluessel, stempel) -> {schluessel: cosine} or None
+        self.rlock = threading.Lock()           # computing: at most one run
         self.rechner, self.warte = None, []
         self._zahl = (None, 0)
         threading.Thread(target=self._wache, daemon=True, name="klang-wache").start()
 
-    # ---------------------------------------------------------- Stand
+    # ---------------------------------------------------------- State
     def verfuegbar(self):
         return self.python.is_file() and (self.gehoer_code / "gehoer/klang.py").is_file()
 
@@ -106,7 +108,7 @@ class Klang:
             pass
         return d
 
-    # ---------------------------------------------------------- Nachbarn
+    # ---------------------------------------------------------- Neighbors
     def _dienst(self):
         if self.proc is not None and self.proc.poll() is None:
             return self.proc
@@ -124,10 +126,10 @@ class Klang:
                 p.stdin.flush()
                 bereit, _, _ = select.select([p.stdout], [], [], ANTWORT_S)
                 if not bereit:
-                    raise TimeoutError("Klang-Dienst antwortet nicht")
+                    raise TimeoutError("sound service does not answer")
                 zeile = p.stdout.readline()
                 if not zeile:
-                    raise EOFError("Klang-Dienst beendet")
+                    raise EOFError("sound service ended")
                 return json.loads(zeile)
             except (OSError, ValueError, TimeoutError, EOFError):
                 p.kill()
@@ -135,8 +137,8 @@ class Klang:
                 return None
 
     def nachbarn(self, k, n=4000):
-        """{schluessel: kosinus} der n nächsten, oder None (kein Fingerabdruck für k). Geht der Dienst nicht:
-        DienstFehler (nicht gemerkt, damit der nächste Aufruf neu fragt)."""
+        """{schluessel: cosine} of the n nearest, or None (no fingerprint for k). If the service fails: DienstFehler
+        (not cached, so the next call asks again)."""
         if not self.verfuegbar() or not self.db.exists():
             return None
         c = (k, n, self.stempel())
@@ -145,7 +147,7 @@ class Klang:
             return self.cache[c]
         a = self._frage({"nah": k, "k": n})
         if not a or not a.get("ok"):
-            raise DienstFehler((a or {}).get("fehler") or "Klang-Dienst antwortet nicht")
+            raise DienstFehler((a or {}).get("fehler") or "sound service does not answer")
         erg = {s: w for s, w in a["nah"]} if a["nah"] is not None else None
         self.cache[c] = erg
         while len(self.cache) > 64:
@@ -159,12 +161,12 @@ class Klang:
                 if self.proc is not None and self.proc.poll() is None and time.time() - self.zuletzt > RUHE_S:
                     self.proc.terminate()
                     self.proc = None
-            with self.rlock:       # Aufträge, die auf einen fremden Lauf gewartet haben, nachholen
+            with self.rlock:       # catch up on jobs that waited for another process's run
                 if self.warte and not self._laeuft():
                     self._starten(["--liste", self._liste_schreiben()])
 
     def _fremder_lauf(self):
-        """Hält ein anderer Prozess die Sperre von klang_vektoren.py (Lauf aus einem früheren Serverstart)?"""
+        """Does another process hold the lock of klang_vektoren.py (a run from an earlier server start)?"""
         if fcntl is None:
             return False
         try:
@@ -176,29 +178,29 @@ class Klang:
             return True
 
     def _laeuft(self):
-        """Aufrufer hält rlock."""
+        """Caller holds rlock."""
         return (self.rechner is not None and self.rechner.poll() is None) or self._fremder_lauf()
 
-    # ---------------------------------------------------------- Rechnen
+    # ---------------------------------------------------------- Computing
     def rechnen_lassen(self, auftraege):
-        """auftraege: [(schluessel, pfad)]. Im Hintergrund, nacheinander, mit niedriger Priorität."""
+        """auftraege: [(schluessel, pfad)]. In the background, one after another, at low priority."""
         if not self.verfuegbar() or not auftraege:
             return
         with self.rlock:
             self.warte.extend(auftraege)
-            if self._laeuft():          # danach (eigener Lauf: _nach_lauf, fremder Lauf: _wache)
+            if self._laeuft():          # afterwards (own run: _nach_lauf, another process's run: _wache)
                 return
             self._starten(["--liste", self._liste_schreiben()])
 
     def alle_rechnen(self):
         if not self.verfuegbar():
-            return False, "Klang-Fingerabdruck braucht gehoer (gibt es nur auf Jeremias' Rechner)"
+            return False, tx("The sound fingerprint needs gehoer (the author's analysis tool, not published yet)")
         with self.rlock:
             if self._laeuft():
-                return False, "Läuft schon"
+                return False, tx("Already running")
             self.warte = []
             self._starten(["--alle"])
-        return True, "Rechnet im Hintergrund; die Zahl oben steigt"
+        return True, tx("Computing in the background; the number above goes up")
 
     def anhalten(self):
         with self.rlock:
@@ -206,7 +208,7 @@ class Klang:
             if self.rechner is not None and self.rechner.poll() is None:
                 self.rechner.terminate()
                 return True
-            if self._fremder_lauf():     # Lauf aus einem früheren Serverstart: pid steht in meta „lauf“
+            if self._fremder_lauf():     # run from an earlier server start: its pid is in meta “lauf”
                 try:
                     pid = int((dict(self._lesen("SELECT k, v FROM meta")).get("lauf", "0").split() or ["0"])[0])
                     if pid > 0:
@@ -225,7 +227,7 @@ class Klang:
         return pfad
 
     def _starten(self, argumente):
-        """Aufrufer hält rlock."""
+        """Caller holds rlock."""
         self.rechner = subprocess.Popen(self.prio + [str(self.python), "-I", str(HIER / "klang_vektoren.py")] + argumente,
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                         env=dict(os.environ, **self.umgebung))

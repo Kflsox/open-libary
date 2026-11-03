@@ -1,6 +1,6 @@
 #!/bin/bash
-# Fertige Mac-App prüfen: Rauchtest mit dem Python aus dem Paket, dann die App öffnen und warten, bis sie ihren
-# Server gestartet hat. Für GitHub Actions; lokal öffnet das ein Fenster.
+# Check the packaged Mac app: smoke test with the Python from the package, then open the app and wait until it has
+# started its server. For GitHub Actions; locally this opens a window.
 #   bash tests/mac_app_pruefen.sh "Open Libary … Mac.zip" arm64|x86_64
 set -euo pipefail
 ZIP="$1"
@@ -22,8 +22,8 @@ for i in $(seq 1 90); do
 done
 pkill -f "Open Libary.app" || true
 if [ -z "$ok" ]; then
-  echo "App hat keinen Server gestartet"
+  echo "The app did not start its server"
   tail -50 ~/Library/Logs/openlibary.log || true
   exit 1
 fi
-echo "App startet ihren Server ($ARCH)"
+echo "The app started its server ($ARCH)"

@@ -1,0 +1,890 @@
+/* Grundriss: Aufbau der Open Libary ohne Aussehen. Farben, Schriften, Rundungen, Abstände kommen aus der Stildatei
+   (stile/<name>.css), die nach dieser geladen wird und die Variablen unten setzt oder Regeln überschreibt. */
+:root{
+  --grund:#fff; --flaeche:#eee; --zeile:#ddd; --linie:#ccc; --linie2:#bbb;
+  --text:#000; --leise:#555; --sehrleise:#888; --signal:#f00; --auf-signal:#fff; --signal-hell:#fdd;
+  --ok:#080; --warn:#a80; --nein:#a00;
+  --leiste:var(--grund); --leiste-text:var(--text); --leiste-leise:var(--leise); --leiste-linie:var(--linie);
+  --fuss:var(--flaeche); --fuss-text:var(--text); --fuss-leise:var(--leise); --fuss-linie:var(--linie);
+  --fuss-warn:var(--warn);   /* Warnfarbe auf der Fußfläche (Fuß und Unterlage); Stile mit farbigem Fuß setzen sie hell */
+  --welle-an:var(--signal); --welle-aus:var(--sehrleise); --welle-linie:var(--linie);
+  --schrift:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Roboto, Ubuntu, sans-serif;
+  --schrift-name:var(--schrift); --schrift-marke:var(--schrift);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  --groesse:13px; --rund:2px; --zeile-hoch:6px; --seite-breit:260px;
+  --rund-knopf:var(--rund); --fuss-fuellung:rgba(127,127,127,.18);   /* Glas, 24.10.2026: Rundung der Fußknöpfe, Füllung bei Hover und an */
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--grund);color:var(--text);font:var(--groesse)/1.4 var(--schrift)}
+button,input,select{font:inherit;color:inherit}
+button{background:none;border:1px solid var(--linie2);border-radius:var(--rund);padding:3px 8px;cursor:pointer}
+button:hover{border-color:var(--leise)}
+button:disabled{opacity:.4;cursor:default}
+input,select{background:var(--grund);border:1px solid var(--linie2);border-radius:var(--rund);padding:4px 7px}
+input::placeholder{color:var(--sehrleise)}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--signal);outline-offset:-1px}
+[hidden]{display:none!important}
+.zahl{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+#app{display:grid;grid-template-rows:auto 1fr auto auto;height:100vh;
+  grid-template-columns:minmax(0,1fr)}     /* vierte Zeile: Unterlage über dem Fuß (Paket 9); Spalte nie breiter als das Fenster (bei 390 px war die Seite 403 bis 499 px breit, Gesamtprüfung 24.10.) */
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:10px 16px;border-bottom:1px solid var(--linie)}
+.marke{font-family:var(--schrift-marke);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:12px}
+.reiter{display:flex}
+.reiter button{border:none;border-bottom:2px solid transparent;border-radius:0;padding:6px 10px;color:var(--leise)}
+.reiter button[aria-selected=true]{color:var(--text);border-bottom-color:var(--signal)}
+#suche{flex:1 1 200px;min-width:0;max-width:560px;font-size:14px;padding:6px 10px}
+#zaehler{color:var(--leise);white-space:nowrap}
+
+main{display:grid;grid-template-columns:var(--seite-breit) 1fr;min-height:0}
+aside{background:var(--leiste);color:var(--leiste-text);border-right:1px solid var(--leiste-linie);overflow-y:auto;padding:12px 14px 40px}
+aside h3{font-size:11px;font-weight:600;color:var(--leiste-leise);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 6px}
+aside h3:first-child{margin-top:4px}
+aside input,aside select{background:transparent;border-color:var(--leiste-linie);color:var(--leiste-text)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{border:1px solid var(--leiste-linie);border-radius:var(--rund);padding:2px 6px;font-size:12px;cursor:pointer;color:var(--leiste-text);background:none}
+.chip .n{color:var(--leiste-leise);font-family:var(--mono);font-size:11px;margin-left:4px;opacity:.8}
+.chip[aria-pressed=true]{background:var(--signal);border-color:var(--signal);color:var(--auf-signal)}
+.chip[aria-pressed=true] .n{color:var(--auf-signal);opacity:.75}
+.chip.raus{border-color:var(--nein);color:var(--nein);text-decoration:line-through}
+.chip.raus .n{color:var(--nein);text-decoration:none;display:inline-block;opacity:1}
+/* Chip mit Minus: das Minus erscheint beim Drüberfahren rechts und schließt aus; bei Ausgeschlossenem bleibt es sichtbar.
+   Es liegt über dem Zwischenraum und dem Anfang des Nachbarn, statt Platz zu nehmen: vorher sprang ein Chip am
+   Zeilenende beim Drüberfahren in die nächste Zeile, und der Klick ging ins Leere (Test 20.10.: 10 von 90 Chips bei
+   1440 px). Jede Chip-Reihe hält rechts 20 px frei, damit das Minus des letzten Chips dort Platz hat; bei
+   ausgeschlossenen Chips steht es fest und nimmt echten Platz. */
+#filter .chips{padding-right:20px}
+.chipgruppe{display:inline-flex;align-items:stretch;position:relative}
+.chipminus{display:none;position:absolute;left:100%;top:0;bottom:0;z-index:2;width:20px;padding:0;
+  border:1px solid var(--leiste-linie);border-left:none;border-radius:0 var(--rund) var(--rund) 0;
+  background:var(--leiste);color:var(--leiste-text);place-items:center}
+.chipminus i{display:block;width:8px;height:2px;background:currentColor}
+.chipgruppe:hover .chipminus,.chipgruppe.raus .chipminus,.chipminus:focus-visible{display:grid}
+.chipgruppe.raus .chipminus{position:static}
+.chipgruppe:hover .chip,.chipgruppe.raus .chip{border-top-right-radius:0;border-bottom-right-radius:0}
+.chipminus:hover{background:var(--nein);border-color:var(--nein);color:#fff}
+.chipgruppe.raus .chipminus{border-color:var(--nein);color:var(--nein)}
+/* gehoer-Filter: Chips mit 0 blass (Messung fehlt noch), darunter eine leise Zeile, wie viele Samples den Wert haben */
+.chips .chip.leer{opacity:.45}
+.abdeckung{font-size:11px;line-height:1.35;color:var(--leiste-leise);margin-top:4px}
+.abdeckung:empty{display:none}
+.schaltreihe{margin-top:6px}
+.schaltchip.ruht{opacity:.6}
+.takterahmen{margin-top:6px}
+.takterahmen input[type=number]{width:58px}
+/* Länge: mindestens und höchstens (Paket 2), je Paar unteilbar; in der Filterspalte untereinander */
+.laengerahmen{flex-wrap:wrap;column-gap:12px;row-gap:6px}
+.tasten{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.tasten .chip{text-align:center;padding:3px 0;font-family:var(--mono)}
+.tasten .chip.leer{opacity:.3}
+.reihe{display:flex;gap:6px;align-items:center}
+.reihe input[type=number]{width:70px}
+label.schalter{display:flex;gap:6px;align-items:center;color:var(--leise);margin-top:6px;cursor:pointer}
+aside label.schalter{color:var(--leiste-leise)}
+#zuruecksetzen{margin-top:20px;width:100%;border-color:var(--leiste-linie);color:var(--leiste-text)}
+
+.liste{overflow-y:auto;min-height:0;position:relative}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+thead th{position:sticky;top:0;background:var(--grund);z-index:1;text-align:left;font-weight:500;font-size:11px;
+  color:var(--leise);text-transform:uppercase;letter-spacing:.06em;padding:8px;border-bottom:1px solid var(--linie);
+  cursor:pointer;user-select:none;white-space:nowrap}
+thead th.sortiert{color:var(--text)}
+thead th.sortiert::after{content:"";display:inline-block;margin-left:5px;border:4px solid transparent;border-top-color:currentColor;vertical-align:-2px}
+thead th.sortiert.ab::after{border-top-color:transparent;border-bottom-color:currentColor;vertical-align:2px}
+tbody tr{border-bottom:1px solid var(--linie);cursor:default;user-select:none;-webkit-user-select:none}
+.app tbody tr{cursor:grab}
+tbody tr:hover{background:var(--flaeche)}
+tbody tr.aktiv{background:var(--zeile);box-shadow:inset 3px 0 0 var(--signal)}
+td{padding:var(--zeile-hoch) 8px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.name .t{display:block;overflow:hidden;text-overflow:ellipsis;font-family:var(--schrift-name)}
+td.name .p{display:block;color:var(--sehrleise);font-size:11px;overflow:hidden;text-overflow:ellipsis}
+td.wert{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.quelle{color:var(--sehrleise)}
+.unsicher{color:var(--leise)}
+.unsicher::after{content:"?";color:var(--warn);margin-left:1px}
+.tags span{color:var(--leise);margin-right:6px}
+.tags span.gt{color:var(--text)}
+tbody tr.aktiv .tags span.gt{color:inherit}
+/* hinter gehoer-Werten: "?" unsicher, "g" gemessen (wie bei BPM und Tonart) */
+.gz{font-style:normal;color:var(--sehrleise);margin-left:3px}
+.fz{font-style:normal;color:var(--warn);margin-left:1px}
+td .unter{display:block;font-size:11px;color:var(--sehrleise);overflow:hidden;text-overflow:ellipsis}
+.liz{font-size:11px;padding:1px 5px;border-radius:var(--rund);border:1px solid}
+.liz.ja{color:var(--ok)}
+.liz.unklar,.liz.ungeprüft{color:var(--warn)}
+.liz.nein{color:var(--nein)}
+.spiel{width:26px;height:26px;padding:0;border-radius:50%;display:grid;place-items:center;border-color:var(--linie2)}
+.spiel svg{width:10px;height:10px;fill:currentColor}
+tr.aktiv .spiel{border-color:var(--signal);background:var(--signal);color:var(--auf-signal)}
+.aktionen{display:flex;gap:4px;justify-content:flex-end;opacity:0}
+tr:hover .aktionen,tr.aktiv .aktionen{opacity:1}
+.aktionen button{font-size:11px;padding:2px 6px;color:var(--leise)}
+
+.skelett td div{height:10px;background:var(--flaeche);border-radius:1px;animation:puls 1.2s ease-in-out infinite}
+@keyframes puls{50%{opacity:.4}}
+.hinweis{padding:48px 24px;color:var(--leise);max-width:520px}
+.hinweis strong{color:var(--text);display:block;margin-bottom:6px;font-size:14px}
+.hinweis button{margin-top:12px}
+.leerknoepfe{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.leerknoepfe button{margin-top:0}
+
+/* Fuß, Aufbau seit Glas (24.10.2026): oben Abspielen, Titel mit zwei Zeilen, Wellenform, Aktionen in zwei Gruppen
+   (Sammeln: Herz, Verwerfen, Playlist; Datei: Finder, Pfad, Messen); darunter „Details“ (Nebensächliches zum Sample,
+   Taste i) und eine Leiste mit Fassung (Segment), Wiedergabe (Schalter) und Lautstärke. Vorher stand alles in einer
+   Zeile mit fünf Zeilen Titelblock. Rundung der Knöpfe aus --rund-knopf (Glas: Kapsel, sonst die Rundung des Stils) */
+footer{border-top:1px solid var(--fuss-linie);display:grid;grid-template-columns:44px minmax(200px,320px) minmax(0,1fr) auto;
+  grid-template-areas:"play jetzt welle aktionen" "play details leiste leiste";gap:6px 16px;
+  align-items:center;padding:10px 16px;background:var(--fuss);color:var(--fuss-text);min-height:86px}
+footer button{border-color:var(--fuss-linie);color:var(--fuss-text)}
+#playKnopf{grid-area:play}
+#jetzt{grid-area:jetzt;min-width:0;align-self:start}
+footer .wellenfeld{grid-area:welle;align-self:start}
+.fusaktionen{grid-area:aktionen;align-self:start;display:flex;flex-wrap:wrap;gap:6px 8px;justify-content:flex-end;align-items:center}
+.fgruppe{display:inline-flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--fuss-linie);border-radius:var(--rund-knopf)}
+.fgruppe button{border-color:transparent;border-radius:var(--rund-knopf);padding:3px 10px;line-height:18px;white-space:nowrap;
+  transition:background-color .12s,transform .12s}
+.fgruppe button:hover:not(:disabled){background:var(--fuss-fuellung);border-color:transparent}
+.fgruppe button:active:not(:disabled),.fusschalter > *:active,.fassungwahl button:active{transform:scale(.96)}
+.fgruppe .herzknopf,.fgruppe .plusknopf{padding-left:8px;padding-right:8px}
+.plusknopf{display:inline-flex;align-items:center}
+.plusknopf svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+.fdetails{grid-area:details;justify-self:start;align-self:center;display:inline-flex;align-items:center;gap:5px;border:none;
+  padding:2px 0;font-size:12px;line-height:18px;color:var(--fuss-leise);background:none}
+footer .fdetails:hover:not(:disabled){color:var(--fuss-text)}
+.fdetails svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.fdetails[aria-expanded=true] svg{transform:rotate(180deg)}
+footer:not(.details) #jetzt .neben{display:none}
+.fusleiste{grid-area:leiste;display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;min-width:0}
+/* Segment, Halbtöne und Schalter stehen in einer Reihe; „gezogen wird: …“ bekommt darunter die ganze Breite der Leiste */
+.fusleiste .fassung{display:contents}
+.fusleiste .fassungzeile{order:10;flex:1 1 100%;min-height:0}
+.fusschalter{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+/* Schalter im Fuß als Kapseln mit Punkt: hohl aus, gefüllt an (Zustand nicht nur über Farbe) */
+footer label.schalter{position:relative;margin:0;display:inline-flex;align-items:center;gap:6px;padding:1px 10px 1px 8px;
+  border:1px solid var(--fuss-linie);border-radius:var(--rund-knopf);color:var(--fuss-leise);font-size:12px;line-height:18px;white-space:nowrap;
+  transition:background-color .12s,transform .12s}
+footer label.schalter input{position:absolute;left:8px;top:50%;width:8px;height:8px;margin:-4px 0 0;opacity:0;pointer-events:none}
+footer label.schalter::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;box-sizing:border-box}
+footer label.schalter:hover{color:var(--fuss-text)}
+footer label.schalter:has(input:checked){color:var(--fuss-text);background:var(--fuss-fuellung)}
+footer label.schalter:has(input:checked)::before{background:currentColor}
+footer label.schalter:has(input:focus-visible){outline:2px solid var(--signal);outline-offset:1px}
+.lautstaerke{display:flex;align-items:center;gap:8px;color:var(--fuss-leise);font-variant-numeric:tabular-nums}
+.fusleiste .lautstaerke{margin-left:auto}
+.lautstaerke span{min-width:3.6em;text-align:right;cursor:pointer;user-select:none}
+.lautstaerke input{width:96px;margin:0;cursor:pointer}
+/* Regler im Fuß und in der Unterlage: ruhige Spur, gefüllt bis zum Wert (--anteil setzt die Seite), runder Griff */
+footer input[type=range],.unterlage input[type=range]{-webkit-appearance:none;appearance:none;height:18px;padding:0;border:none;
+  background:none;cursor:pointer;--anteil:100%}
+footer input[type=range]:focus,.unterlage input[type=range]:focus{outline:none}
+footer input[type=range]:focus-visible,.unterlage input[type=range]:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+footer input[type=range]::-webkit-slider-runnable-track,.unterlage input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:linear-gradient(to right,var(--regler-an,var(--fuss-text)) var(--anteil),var(--regler-aus,var(--fuss-linie)) var(--anteil))}
+footer input[type=range]::-webkit-slider-thumb,.unterlage input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+  margin-top:-5px;border:none;border-radius:50%;background:var(--regler-griff,var(--fuss-text));box-shadow:var(--regler-schatten,none)}
+footer input[type=range]::-moz-range-track,.unterlage input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--regler-aus,var(--fuss-linie))}
+footer input[type=range]::-moz-range-progress,.unterlage input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--regler-an,var(--fuss-text))}
+footer input[type=range]::-moz-range-thumb,.unterlage input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:var(--regler-griff,var(--fuss-text))}
+#playKnopf{width:40px;height:40px;border-radius:50%;padding:0;display:grid;place-items:center;border-color:var(--signal);background:var(--signal);color:var(--auf-signal)}
+#playKnopf:disabled{background:none;color:var(--fuss-leise);border-color:var(--fuss-linie)}
+#playKnopf svg{width:14px;height:14px;fill:currentColor}
+#jetzt .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--schrift-name)}
+#jetzt .d{color:var(--fuss-leise);font-size:12px;line-height:1.5}
+/* Herkunft der Werte („aus dem Dateinamen“, „gemessen“) gehört zu den Details; sonst steht „als Projekt“ noch in der Zeile */
+footer:not(.details) #jetzt .werte .quelle{display:none}
+#jetzt .quelle{color:var(--fuss-leise);opacity:.75}
+#welle{width:100%;height:56px;display:block;cursor:text}   /* Paket 10: Klick springt, Ziehen markiert einen Ausschnitt */
+.wellenfeld{min-width:0}
+.pegelzeile{color:var(--fuss-leise);font-size:12px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.pegelzeile:empty{display:none}
+.pegelzeile .quelle{opacity:.75}
+/* Wechsel im Takt (Paket 8): klein zwischen den Schaltern, in den Fuß-Farben */
+footer select.wechselwahl{padding:1px 6px;font-size:12px;line-height:18px;background:var(--fuss-feld,var(--fuss));color:var(--fuss-text);
+  border-color:var(--fuss-linie);border-radius:var(--rund-knopf)}
+/* Meldung und Ladeliste über dem Fuß statt auf der Wellenform (Glas, 24.10.2026: der Fuß ist je nach Stil 120 bis 340 px hoch) */
+#meldung{position:fixed;bottom:calc(var(--fuss-h,86px) + var(--unter-h,0px) + 12px);left:50%;transform:translateX(-50%);background:var(--text);color:var(--grund);
+  padding:6px 12px;border-radius:var(--rund);font-size:12px}
+
+#netz{display:block;overflow-y:auto;padding:16px 20px 60px;min-height:0}
+.netzkopf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:980px}
+.netzkopf input{flex:1;min-width:220px}
+.netzerklaer{color:var(--leise);max-width:820px;margin:10px 0 16px}
+.posten{border-top:1px solid var(--linie);padding:12px 0;max-width:980px}
+.posten .kopf{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.posten .kopf b{font-weight:500;font-size:14px;font-family:var(--schrift-name)}
+.posten .meta{color:var(--leise);font-size:12px}
+.posten .beschr{color:var(--leise);font-size:12px;margin:4px 0 8px;max-width:760px}
+.dateien{margin:8px 0 0;border-left:1px solid var(--linie2);padding-left:12px}
+.dateien div{display:flex;gap:8px;align-items:center;padding:2px 0;font-size:12px}
+.dateien .dn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fortschritt{font-family:var(--mono);font-size:12px;color:var(--signal)}
+
+/* Schmales Fenster: Kopf bricht um (Suche eine eigene Zeile), Filter liegen über der Liste in derselben Rasterzelle
+   statt fest unter einem angenommenen Kopf von 52 px (Test 20.10.: bei 390 px nur mit seitlichem Scrollen erreichbar,
+   der zweizeilige Kopf verdeckte die Überschriften der Filter; bei 720 px lag "Messen" außerhalb) */
+@media (max-width:860px){
+  header{gap:8px 12px}
+  #suche{order:5;flex:1 1 240px;max-width:none}
+  #zaehler{order:6}
+  main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+  #bib > aside,#bib > .liste{grid-area:1/1}
+  aside{display:none}
+  aside.offen{display:block;z-index:5}
+  #filterKnopf{display:inline-block!important}
+  .sp-art,.sp-dauer,.sp-tags,.sp-liz{display:none}
+  /* Fuß gestapelt: Titel neben Abspielen, Wellenform über die ganze Breite, dann die Leiste, unten Details und Aktionen */
+  footer{grid-template-columns:44px minmax(0,1fr);grid-template-areas:"play jetzt" "welle welle" "leiste leiste" "details aktionen"}
+  .fusaktionen{align-self:center}}
+@media (max-width:560px){
+  .sp-akt{display:none}
+  .marke{display:none}
+  /* Projektschalter, Filter, ? und Suche teilen sich eine Zeile; mit 240 px Grundbreite rutschte die Suche in eine
+     eigene Zeile, der Kopf wurde 39 px höher und ? landete am rechten Rand außerhalb des Fensters (Prüfer 23.10.) */
+  #suche{flex-basis:130px}
+  /* Zufall-Segment: mit „aus meiner Bibliothekssuche“ brach der Knopf bei 390 px zweizeilig um, die Leiste war 50 px
+     hoch und breiter als das Fenster (Prüfer Paket 5); schmal heißt er nur „Bibliothekssuche“ */
+  #zTyp .zbreit{display:none}
+  #zTyp button{padding:6px 7px;white-space:nowrap}
+  /* Reiter: enger, und wo sie trotzdem nicht passen (Partitur, Tracker), seitlich wischbar statt die Seite zu verbreitern */
+  .reiter{max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .reiter button{padding:6px 7px;white-space:nowrap}
+}
+.warnzeichen{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;font-size:10px;font-weight:700;
+  border-radius:50%;background:var(--warn);color:var(--grund);margin-right:6px;vertical-align:1px}
+.warntext{color:var(--warn)!important}
+footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
+
+/* Netz: zwei Quellen nebeneinander, Ladeliste darüber. Die Einzelsounds bekommen den breiteren Teil (ihre Tabelle hat
+   elf Spalten, die Sammlungen brechen als Text um) */
+.netzspalten{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:32px;margin-top:16px}
+@media (max-width:1300px){.netzspalten{grid-template-columns:1fr}}
+.netztitel{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin:0 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.netztitel .quelle{text-transform:none;letter-spacing:0;font-weight:400}
+.ovzeile{display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--linie);font-size:12px}
+.ovzeile .dn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.posten.verdaechtig{opacity:.62}
+.posten.verdaechtig:hover{opacity:1}
+.artgruppe{margin:10px 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--leise)}
+#ladeliste{max-width:980px;margin-top:12px}
+.ladung{border:1px solid var(--linie2);border-radius:var(--rund);padding:8px 10px;margin-bottom:6px}
+.ladung .reihe{flex-wrap:wrap}
+.balken{height:3px;background:var(--linie);margin-top:6px}
+.balken div{height:100%;background:var(--signal);transition:width .4s}
+.rueckfrage{border:1px solid var(--warn);padding:8px 10px;margin:6px 0;border-radius:var(--rund)}
+
+/* Netz: Startseite, Merkliste, Einzelsound-Tabelle, Ladeliste */
+.verlauf{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:10px 0 0;max-width:980px}
+.verlauf .chip{color:var(--text);border-color:var(--linie2)}
+.kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:14px 0 6px;max-width:980px}
+.kachel{padding:18px 10px;text-align:left;font-weight:600;font-size:14px;border-color:var(--linie2)}
+.kachel:hover{border-color:var(--signal)}
+.kacheln.klein{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:4px}
+.kacheln.klein .kachel{padding:5px 8px;font-size:12px;font-weight:500}
+.merkliste{position:sticky;top:-16px;z-index:2;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;padding:8px 10px;
+  background:var(--zeile);border:1px solid var(--signal);border-radius:var(--rund);max-width:980px}
+.merkliste input{width:200px}
+.quellstatus{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0;min-height:22px;font-size:12px}
+.qs{display:inline-flex;gap:6px;align-items:center}
+.qs button{font-size:11px;padding:1px 6px}
+.einzelfilter{display:flex;flex-direction:column;gap:6px;margin:6px 0 8px}
+.einzelfilter .chip{color:var(--text);border-color:var(--linie2)}
+.einzelfilter .chip[aria-pressed=true]{background:var(--signal);border-color:var(--signal);color:var(--auf-signal)}
+.passt{display:inline-flex;align-items:center;gap:4px;cursor:help}
+.passtbalken{display:inline-block;width:28px;height:4px;background:var(--linie)}
+.passtbalken i{display:block;height:100%;background:var(--signal)}
+.posten .kopf .passt{margin-right:2px}
+.inlib{border-color:var(--signal);color:var(--signal);font-weight:600}
+.inlib:disabled{border-color:var(--linie2);color:var(--leise);font-weight:400}
+.ezeile{display:grid;grid-template-columns:18px 28px minmax(0,1fr) 54px 72px 84px 40px 44px 56px 92px 118px;gap:6px;align-items:center;
+  padding:4px 0;border-bottom:1px solid var(--linie);font-size:12px}
+.ezeile .dn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ezeile > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ezeile.ekopf{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--leise);border-bottom-color:var(--linie2)}
+.ezeile.spielt{background:var(--zeile)}
+.ezeile .spiel{width:22px;height:22px}
+.ezeile button{font-size:11px;padding:2px 6px}
+.skelettzeile{height:30px}
+.ezeile.skelettzeile{display:block;padding-top:10px}
+.skelettzeile div{height:10px;width:70%;background:var(--flaeche);animation:puls 1.2s ease-in-out infinite}
+.mehr{margin:10px 0}
+/* Einzelsounds: Spalten nach der Breite des eigenen Kastens, nicht des Fensters. Vorher blieb für den Namen bei 1440 px
+   nichts übrig (feste Spalten 666 px, Kasten 620 px, Test 20.10.). Schmaler: erst Quelle und Tonart weg (die Quelle
+   steht im Tooltip des Namens), dann Relevanz, Art und BPM, ganz schmal auch die Länge */
+.netzspalten > section:first-child{container-type:inline-size}
+@container (max-width:880px){
+  .ezeile{grid-template-columns:18px 28px minmax(0,1fr) 54px 84px 40px 56px 92px 118px}
+  .ezeile > :nth-child(5),.ezeile > :nth-child(8){display:none}
+}
+@container (max-width:600px){
+  .ezeile{grid-template-columns:18px 28px minmax(0,1fr) 56px 92px 104px}
+  .ezeile > :nth-child(4),.ezeile > :nth-child(6),.ezeile > :nth-child(7){display:none}
+}
+@container (max-width:420px){
+  .ezeile{grid-template-columns:18px 28px minmax(0,1fr) 76px 96px}
+  .ezeile > :nth-child(9){display:none}
+}
+.ladeliste{position:fixed;right:16px;bottom:calc(var(--fuss-h,86px) + var(--unter-h,0px) + 12px);width:min(360px,calc(100vw - 32px));max-height:45vh;overflow-y:auto;z-index:6;
+  background:var(--grund);color:var(--text);border:1px solid var(--linie2);border-radius:var(--rund);padding:8px 10px}
+.ladekopf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.ladekopf button{font-size:11px;padding:1px 6px}
+.ladeliste .ladung{margin-bottom:6px;font-size:12px}
+.ladeliste .ladung b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px}
+.ladeliste .ladung button{font-size:11px;padding:1px 6px}
+/* je geladene Datei der Stand der gehoer-Messung */
+.messung{margin:6px 0 4px;padding-top:4px;border-top:1px solid var(--linie)}
+.messzeile{display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline;padding:1px 0}
+.messzeile .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mstat{font-family:var(--mono);font-size:11px;color:var(--sehrleise)}
+.mstat.misst{color:var(--signal);animation:puls 1.2s ease-in-out infinite}
+.mstat.gemessen{color:var(--ok)}
+.messfehler{flex-basis:100%;color:var(--warn);font-size:11px;line-height:1.35}
+.messhinweis{flex-basis:100%;color:var(--leise);font-size:11px;line-height:1.35}
+.messung button{margin-top:3px}
+
+/* Zufall: eine große Karte, die man in FL Studio zieht */
+#zufall{display:block;overflow-y:auto;padding:20px 20px 60px;min-height:0}
+.zufallkopf{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;max-width:980px}
+.zufallkopf input[type=number]{width:70px}
+.segment{display:inline-flex}
+.segment button{border-radius:0;margin-left:-1px;padding:6px 14px}
+.segment button:first-child{border-radius:var(--rund) 0 0 var(--rund);margin-left:0}
+.segment button:last-child{border-radius:0 var(--rund) var(--rund) 0}
+.segment button[aria-pressed=true]{background:var(--signal);border-color:var(--signal);color:var(--auf-signal)}
+.zkarte{margin:24px 0 14px;max-width:760px;min-height:220px;padding:28px 30px;border:1px solid var(--linie2);border-radius:var(--rund);
+  display:flex;flex-direction:column;gap:10px;background:var(--flaeche)}
+.app .zkarte{cursor:grab}
+.zart{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--signal);font-weight:600}
+.zname{font-size:26px;font-weight:600;line-height:1.2;overflow-wrap:anywhere;font-family:var(--schrift-name)}
+.zpack{color:var(--leise)}
+.zwerte{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:16px}
+.zknoepfe button{padding:8px 18px;font-size:14px}
+.zhilfe{max-width:760px}
+
+/* Einstellungen */
+#einst{display:block;overflow-y:auto;padding:16px 20px 60px;min-height:0}
+/* Zwei Gruppen (Kritik 24.10. abends): „Material“ mit Liquid Glass kommt dazu, „Farbe“ mit den fünf Farbstilen ersetzt sich
+   gegenseitig. Eine senkrechte Linie trennt sie, damit man den Unterschied sieht und nicht nur liest. */
+.stilwahl{display:flex;flex-wrap:wrap;align-items:stretch;gap:14px 0;max-width:1260px}
+.stilgruppe{display:flex;flex-direction:column;gap:8px;min-width:0}
+.stilgruppe h4{margin:0;font-size:12px;font-weight:600;color:var(--leise)}
+.stilgruppe.material{flex:0 1 196px}
+.stilgruppe.farbe{flex:1 1 560px;margin-left:24px;padding-left:24px;border-left:1px solid var(--linie2)}
+.stilreihe{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px}
+.stilgruppe.material .stilreihe{grid-template-columns:minmax(0,1fr)}
+@media (max-width:860px){
+  .stilgruppe.material{flex:1 1 100%}
+  .stilgruppe.material .stilreihe{grid-template-columns:repeat(auto-fill,minmax(168px,1fr))}
+  .stilgruppe.farbe{margin-left:0;padding-left:0;border-left:none;padding-top:14px;border-top:1px solid var(--linie2)}
+}
+.stiloption{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left;padding:10px;border:1px solid var(--linie2)}
+.stiloption[aria-pressed=true]{border:2px solid var(--signal);padding:9px}
+/* Haken (24.10.2026): jede Karte ist ein Schalter; leerer Ring = aus, gefüllter Kreis mit Haken = an (nicht nur Farbe) */
+/* ungewählt ein echter leerer Ring in Schriftfarbe (vorher gefüllte graue Scheibe, kaum vom gewählten Zustand zu trennen),
+   er sitzt deshalb unter der Vorschau statt auf ihr: dort ist der Grund die Karte selbst und die Schriftfarbe trägt immer */
+.stiloption .haken{position:absolute;top:102px;right:12px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+  background:transparent;box-shadow:inset 0 0 0 1.5px currentColor;pointer-events:none}
+.stiloption[aria-pressed=true] .haken{top:101px;right:11px;background:var(--signal);box-shadow:none}
+.stiloption .haken svg{width:14px;height:14px;fill:none;stroke:var(--auf-signal);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.stiloption[aria-pressed=true] .haken svg{opacity:1}
+/* feste Höhe: wenn der Hinweis kommt, rutscht „Transparenz reduzieren“ nicht nach unten */
+.stilhinweis{height:20px;line-height:20px;margin:10px 0 0;color:var(--text);font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+/* ohne Glas nicht abgeblendet (abgeblendet hieß „geht nicht“, der Schalter wirkt aber vor); nur der Zusatz ist leiser */
+label.schalter.wenigglas{color:var(--text)}
+.wenigglas .quelle{margin-left:4px;color:var(--leise)}
+.stiloption b{font-size:14px;padding-right:30px}
+.stiloption .quelle{font-size:12px;line-height:1.4}
+.muster{display:grid;grid-template-columns:28% 1fr;grid-template-rows:1fr 18px;height:84px;border:1px solid var(--linie2);overflow:hidden}
+.muster > span:nth-child(1){grid-row:1}
+.muster > span:nth-child(2){grid-row:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:0 10px}
+.muster > span:nth-child(3){grid-column:1/-1}
+.muster i{display:block;height:5px;width:70%}
+.muster i:last-child{width:35%}
+/* Liquid Glass allein (ALL IN): alle Grundfarben sind fast gleich hell, das Muster zeigt deshalb den Aufbau: ruhiger
+   farbiger Grund, Filter und Liste als helle Glasflächen, darüber schwebend der Player als Kapsel mit blauem Abspielpunkt */
+.stiloption[data-stil=glas] .muster{grid-template-rows:1fr 26px;gap:0 5px;padding:6px 6px 0;
+  background:radial-gradient(70% 90% at 10% 0%,rgba(0,113,227,.30),transparent 70%),radial-gradient(60% 80% at 100% 40%,rgba(48,176,199,.26),transparent 70%),
+    radial-gradient(70% 70% at 60% 110%,rgba(255,159,10,.20),transparent 70%),#e9ebf1}
+.stiloption[data-stil=glas] .muster > span:nth-child(1){background:rgba(255,255,255,.62)!important;border-radius:6px;grid-row:1 / 3;grid-column:1;margin-bottom:6px;
+  box-shadow:inset 0 .5px 0 #fff}
+.stiloption[data-stil=glas] .muster > span:nth-child(2){background:rgba(255,255,255,.80)!important;border-radius:6px;grid-row:1 / 3;grid-column:2;
+  padding-bottom:22px;margin-bottom:6px;box-shadow:inset 0 .5px 0 #fff}
+.stiloption[data-stil=glas] .muster > span:nth-child(3){grid-row:2;position:relative;z-index:1;margin:0 2px 6px;border-radius:999px;
+  background:rgba(250,250,252,.88)!important;box-shadow:0 2px 6px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.06)}
+.stiloption[data-stil=glas] .muster > span:nth-child(3)::before{content:"";position:absolute;left:5px;top:50%;width:10px;height:10px;
+  margin-top:-5px;border-radius:50%;background:#0071e3}
+/* Liquid Glass mit Farbstil: die Glas-Vorschau zeigt die Kapsel in der Glasfarbe des gewählten Farbstils (--farbkapsel)
+   und den Abspielpunkt in dessen Signalfarbe, wie es dann wirklich aussieht. Ohne Farbstil bleibt sie wie oben. */
+.stilwahl.mitfarbe .stiloption[data-stil=glas] .muster > span:nth-child(3){background:var(--farbkapsel)!important;
+  box-shadow:0 2px 6px rgba(0,0,0,.22),inset 0 .5px 0 rgba(255,255,255,.6),inset 0 0 0 .5px rgba(255,255,255,.25)}
+.stilwahl.mitfarbe .stiloption[data-stil=glas] .muster > span:nth-child(3)::before{background:var(--farbpunkt)}
+/* Farbstil bei an Glas: der Player schwebt in der Vorschau als kleine Kapsel in der Glasfarbe des Stils (--kapsel) über der Liste */
+.stilwahl.mitglas .stiloption:not([data-stil=glas]) .muster{grid-template-rows:1fr 26px}
+.stilwahl.mitglas .stiloption:not([data-stil=glas]) .muster > span:nth-child(1){grid-row:1 / 3;grid-column:1}
+.stilwahl.mitglas .stiloption:not([data-stil=glas]) .muster > span:nth-child(2){grid-row:1 / 3;grid-column:2;padding-bottom:22px}
+.stilwahl.mitglas .stiloption:not([data-stil=glas]) .muster > span:nth-child(3){grid-row:2;grid-column:1 / -1;position:relative;z-index:1;
+  margin:0 8px 6px;border-radius:999px;background:var(--kapsel)!important;opacity:.9;
+  box-shadow:0 2px 6px rgba(0,0,0,.22),inset 0 .5px 0 rgba(255,255,255,.6),inset 0 0 0 .5px rgba(255,255,255,.25)}
+
+/* ---------- Favoriten, Playlists, Downloads */
+.aktionen{opacity:1}
+.aktionen > *{opacity:0}
+tr:hover .aktionen > *,tr.aktiv .aktionen > *,.aktionen > .herzknopf.an{opacity:1}
+.herzknopf{display:inline-flex;align-items:center;gap:5px}
+.herzknopf svg{width:13px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5}
+.herzknopf.an{color:var(--signal)}
+.herzknopf.an svg{fill:currentColor}
+.aktionen .herzknopf{padding:2px 5px}
+#fFav{padding:4px 8px}
+.sammlungen{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.plzeile{display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:100%}
+.plzeile .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plzeile .klein{opacity:0}
+.plzeile:hover .klein,.plzeile .klein:focus-visible{opacity:1}
+.plzeile.frage{color:var(--leiste-text);font-size:12px}
+.plzeile input{font-size:12px;padding:2px 6px;width:100%}
+button.klein{font-size:11px;padding:1px 5px;color:var(--leiste-leise);border-color:transparent;background:none}
+button.klein:hover{border-color:var(--leiste-linie);color:var(--leiste-text)}
+.plneu{margin-top:2px}
+.plmenue{position:fixed;z-index:50;width:240px;max-height:min(60vh,420px);overflow-y:auto;background:var(--grund);color:var(--text);
+  border:1px solid var(--linie2);border-radius:var(--rund);padding:6px;display:flex;flex-direction:column;gap:2px}
+.pltitel{font-size:12px;color:var(--leise);padding:2px 6px 6px;border-bottom:1px solid var(--linie);margin-bottom:4px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pleintrag{display:flex;align-items:center;gap:8px;text-align:left;border-color:transparent;background:none;padding:4px 6px}
+.pleintrag:hover{background:var(--flaeche)}
+.pleintrag i{width:11px;height:11px;border:1px solid var(--linie2);flex:none}
+.pleintrag[aria-pressed=true] i{background:var(--signal);border-color:var(--signal)}
+.pleintrag .n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--sehrleise)}
+.plleer{padding:4px 6px;font-size:12px}
+.plmenue input{margin-top:4px}
+#downloads{display:block;overflow-y:auto;padding:16px 20px 60px;min-height:0}
+.dltag{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--leise);margin:22px 0 6px}
+.dltab{width:100%;table-layout:auto}
+.dltab td{padding:6px 8px;border-bottom:1px solid var(--linie)}
+.dltab .dlzeit{width:52px;text-align:right}
+.dltab .sp-akt{width:150px}
+/* Spalte Art bei breitem Fenster so breit, dass „ganzer Song“ ganz steht (bei 1728 px stand „ganzer So…“, die Namensspalte hatte Platz) */
+@media (min-width:1400px){ #bib col.sp-art{width:112px!important} }
+@media (max-width:700px){ .dltab .sp-art,.dltab .dlzeit{display:none} }
+
+/* Tastenkarte (Taste ?): Fläche über der Liste zwischen Kopf und Fuß; top und bottom setzt die Seite beim Öffnen */
+.tastenknopf{margin-left:auto;width:24px;height:24px;padding:0;border-color:transparent;color:var(--sehrleise);font-family:var(--mono)}
+.tastenknopf:hover{color:var(--text);border-color:var(--linie2)}
+.tastenkarte{position:fixed;left:0;right:0;z-index:45;overflow-y:auto;background:var(--grund);color:var(--text);
+  border-top:1px solid var(--linie);padding:16px 20px 28px}
+.tkkopf{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:14px}
+.tkkopf strong{font-size:14px}
+.tkkopf button{margin-left:auto}
+.tkgruppen{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px 28px;max-width:1280px}
+.tkgruppe h3{font-size:11px;font-weight:600;color:var(--leise);text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;
+  padding-bottom:4px;border-bottom:1px solid var(--linie)}
+.tkgruppe.jetzt h3{color:var(--text);border-bottom-color:var(--signal)}
+.tkgruppe dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;align-items:baseline}
+.tkgruppe dt{max-width:150px;line-height:1.9}
+.tkgruppe kbd{white-space:nowrap}
+.tkgruppe dd{margin:0;color:var(--leise)}
+.tkgruppe kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--linie2);border-radius:var(--rund);padding:0 5px;
+  color:var(--text);background:var(--flaeche)}
+
+/* Projektrahmen (Paket 1): Schalter im Kopf rechts neben den Reitern, Feld darunter. Schriftfarbe vom Kopf (Kobalt und
+   Lila haben einen farbigen Kopf); aus: gedämpft, an: Unterstrich in Schriftfarbe (eine Auszeichnung für „gilt gerade“). */
+.projekt{position:relative}
+.projektknopf{border:0;border-bottom:2px solid transparent;padding:6px 8px;font-family:var(--mono);
+  font-size:12px;white-space:nowrap;border-radius:0}
+.projektknopf.aus{opacity:.6;font-family:inherit}
+.projektknopf.an,.projektknopf:hover{border-bottom-color:currentColor}
+.projektknopf.tappt{border-bottom-style:dashed;opacity:1}
+.projektfeld{position:absolute;top:100%;left:0;z-index:50;margin-top:6px;width:280px;max-width:calc(100vw - 32px);
+  background:var(--grund);color:var(--text);border:1px solid var(--linie2);border-radius:var(--rund);padding:10px 12px}
+.projektfeld label.schalter{margin:0 0 8px;color:var(--text)}
+.pzeile{display:grid;grid-template-columns:52px 1fr auto;gap:6px;align-items:center;margin-bottom:6px}
+.pzeile label{color:var(--leise);font-size:12px}
+.pzeile input{min-width:0;width:100%}
+.pfehler{color:var(--nein);font-size:12px;min-height:0}
+.pfehler:empty{display:none}
+.projektfeld p{margin:6px 0 0;font-size:12px;line-height:1.4}
+input.ungueltig{border-color:var(--nein)!important;outline-color:var(--nein)}
+.rahmenwahl{margin-top:6px;font-size:12px;color:var(--leiste-leise)}
+.rahmenwahl select{padding:2px 4px}
+.projekthinweis{margin:8px 0 0;font-size:12px;color:var(--sehrleise)}
+.textknopf{border:none;padding:0;color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;font-size:inherit}
+.textknopf:hover{color:var(--fuss-text)}
+
+/* Fassung (Paket 3): Umschalter Original · Projekt · frei im Fuß. Gewählt: Unterstrich in Schriftfarbe, dieselbe
+   Auszeichnung wie der Projektschalter im Kopf („gilt gerade“); Projekt ohne Rahmen gedämpft. */
+/* Zeile unter der Wellenform (neben den Knöpfen kostete sie die Wellenform bei 1280 px 142 von 195 px) */
+.fassung{display:flex;flex-wrap:wrap;align-items:center;gap:0 10px;min-width:0;font-size:12px;line-height:18px}
+/* Segment (seit Glas, 24.10.2026): gemeinsame Spur, die gewählte Stellung als Daumen in Schriftfarbe; vorher unterstrichen */
+.fassungwahl{display:inline-flex;gap:2px}
+footer .fassungwahl,.unterlage .fassungwahl{padding:1px;border:1px solid var(--fuss-linie);border-radius:var(--rund-knopf);background:var(--segment-spur,transparent)}
+footer .fassungwahl button,.unterlage .fassungwahl button{border:0;border-radius:var(--rund-knopf);padding:0 10px;font-size:12px;
+  line-height:18px;color:var(--fuss-leise);background:none;transition:background-color .15s,color .15s,transform .12s}
+footer .fassungwahl button:hover,.unterlage .fassungwahl button:hover{color:var(--fuss-text)}
+footer .fassungwahl button.an,.unterlage .fassungwahl button.an{color:var(--segment-text,var(--fuss));background:var(--segment-daumen,var(--fuss-text));box-shadow:var(--segment-schatten,none)}
+footer .fassungwahl button.gesperrt{opacity:.5}
+.fassungfrei{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fuss-leise);font-variant-numeric:tabular-nums}
+.fassungfrei input[type=range]{width:84px;margin:0;accent-color:var(--fuss-text);cursor:pointer}
+.fassungfrei span{min-width:2.2em}
+footer .fassungfrei label.schalter{margin:0}
+/* eigene Zeile unter dem Umschalter, umbricht und wird nie abgeschnitten: „gezogen wird: …“ und die Hinweise müssen
+   lesbar sein (eine Zeile mit … schnitt bei 1280 px fast alles ab). Zwei Zeilen sind immer reserviert, damit der Fuß
+   beim Durchblättern ruhig bleibt; eine dritte kommt nur bei breiter Schrift (Tracker, 150 px Wellenfeld) dazu */
+.fassungzeile{flex:1 1 100%;min-width:0;min-height:36px;color:var(--fuss-text);overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums}
+.fassungzeile.gedaempft{color:var(--fuss-leise)}
+/* in der App sind der Fuß-Text und „gezogen wird: …“ die Ziehflächen für das laufende Sample */
+html.app #jetzt,html.app .fassungzeile{cursor:grab}
+
+/* Unterlage (Paket 9): eine schmale Zeile direkt über dem Fuß, in den Fuß-Farben, durch eine Linie vom Fuß getrennt
+   wie Fuß und Liste. Nur sichtbar, wenn eine gesetzt ist. Auszeichnung wie die Fassung: die gewählte Art unterstrichen.
+   Der Name des Samples kürzt mit …, der Zustand rechts ebenso (voller Text beim Drüberfahren). */
+.unterlage{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px;min-width:0;padding:4px 16px;
+  border-top:1px solid var(--fuss-linie);background:var(--fuss);color:var(--fuss-leise);font-size:12px;line-height:18px;
+  padding-right:max(16px, calc(100% - 100vw + 16px))}   /* ist die Seite schmal überbreit (Liste), bricht die Zeile im Fenster um */
+.unterlage .ukopf{color:var(--fuss-text);font-weight:600}
+.unterlage .fassungwahl{min-width:0}
+#uSample{max-width:24em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.utempo{font-variant-numeric:tabular-nums;white-space:nowrap}
+.unterlage .ulaut{margin-right:0}
+.unterlage .ulaut span{min-width:2.6em}
+.unterlage .ulaut input{width:72px}
+.unterlage .textknopf:hover{color:var(--fuss-text)}
+.ustatus{flex:1 1 14em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ustatus:empty{display:none}
+.textknopf.gesperrt{opacity:.5}
+/* „als Unterlage“ in der Schalterspalte: Schrift wie die Schalter daneben */
+footer .fusunter{border:1px solid var(--fuss-linie);border-radius:var(--rund-knopf);padding:1px 10px;text-decoration:none;
+  color:var(--fuss-leise);font-size:12px;line-height:18px;background:none;white-space:nowrap}
+footer .fusunter:hover:not(:disabled){color:var(--fuss-text);background:var(--fuss-fuellung)}
+.projektfeld .punterlage{color:var(--leise)}
+.projektfeld .textknopf:hover{color:var(--text)}
+/* Paket 10: Ausschnitt und Notiz. Zeichen am Namen in der Liste, Notizzeile im Fuß mit anklickbaren Zeiten */
+td.name .marken:empty{display:none}
+td.name .marken{display:inline-flex;gap:3px;margin-right:5px;vertical-align:-1px;opacity:.65}   /* Farbe der Zeile, auch der aktiven */
+.zmarke{display:inline-block;width:10px;height:10px;font-style:normal}
+.zmarke svg{display:block;width:10px;height:10px}
+#jetzt .notiz{color:var(--fuss-text);overflow-wrap:anywhere}
+#jetzt .zeitmarke{border:none;padding:0;background:none;color:inherit;font:inherit;font-variant-numeric:tabular-nums;
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+#jetzt .zeitmarke:hover{color:var(--fuss-text);text-decoration-thickness:2px}
+#jetzt .notizzeile input{width:100%;font-size:12px;padding:1px 5px;background:var(--fuss);color:var(--fuss-text);border-color:var(--fuss-linie)}
+#jetzt .notizzeile input::placeholder{color:var(--fuss-leise)}
+/* Paket 4: Verwerfen und Verlauf. Schon gehörte Namen gedämpft (die aktive Zeile behält ihre Farbe), Tageszeilen in
+   Gezogen wie die Tage in Downloads, Lizenz in Gezogen auch im schmalen Fenster (dort fehlt die Spalte) */
+tbody tr.gehoert:not(.aktiv) td.name .t{color:var(--leise)}
+tbody tr.tagkopf,tbody tr.tagkopf:hover{background:none;box-shadow:none}
+tbody tr.tagkopf td{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--leise);padding:18px 8px 6px;
+  border-bottom:1px solid var(--linie);cursor:default}
+tbody tr.tagkopf .n{letter-spacing:0;font-variant-numeric:tabular-nums}
+td.name .liz.schmal,td.name .vzeit.schmal{display:none}
+@media (max-width:860px){ td.name .liz.schmal{display:inline-block;margin-left:4px;vertical-align:0}
+  td.name .vzeit.schmal{display:inline;font-variant-numeric:tabular-nums} }
+td.name .wegmarke{color:var(--leise)}
+#meldung [data-rueck]{color:inherit;cursor:pointer;background:none}
+/* Verwerfen im Fuß: Kreuz neben dem Herz, gesetzt (verworfen) in der Signalfarbe wie das Herz */
+.wegknopf svg{width:12px;height:12px;stroke-width:1.8;stroke-linecap:round}
+/* schmal und dicht am Herz: zwischen 661 und 760 px passt die Knopfzeile sonst nicht mehr in eine Reihe (gemessen 24.10.) */
+footer .wegknopf{padding-left:8px;padding-right:8px}
+/* „+ Playlist“ heißt seit Paket 4 nur „+“ wie an der Zeile (Titel sagt den Rest): Herz, Kreuz und Plus stehen als
+   Gruppe, und das Kreuz kostet weder Wellenform (1280: 225 statt 198 px) noch eine Fußzeile (390, 680, Tracker 720) */
+#fPl{min-width:28px}
+.herzknopf.wegknopf.an svg{fill:none}
+/* Paket 5, Weiterstöbern: Pack als Link (unterstrichen erst beim Drüberfahren), Zeile „ähnlich wie“ über der Liste,
+   Merken-Meldung im Fuß und auf der Zufallskarte, ruhende Felder im Zufall bei „aus meiner Bibliothekssuche“ */
+.packlink{color:inherit;cursor:pointer;text-decoration:none}
+.packlink:hover{text-decoration:underline;text-underline-offset:2px}
+td.name .packlink:hover,.zpack .packlink:hover{color:var(--text)}
+#jetzt .packlink:hover{color:var(--fuss-text)}
+.aehnlichzeile{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--linie);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aehnlichzeile .aname{font-family:var(--schrift-name);font-weight:500}
+.aehnlichzeile .textknopf:hover{color:var(--text)}
+/* Pack-Zeile im Fuß einzeilig: „Pack · Ähnliche · Herkunft · Lizenz“. Nur der Packname kürzt mit … (voller Name im
+   Tooltip); Herkunft und Lizenz bleiben ganz, erst wenn sie allein nicht passen, schneidet das Zeilenende ab. Mit
+   Umbruch wäre der Fuß bei rund 40 % der Samples 18 px höher geworden (gemessen 24.10. in fünf Stilen). */
+#jetzt .packzeile{display:flex;white-space:nowrap;min-width:0;overflow:hidden}
+#jetzt .packzeile .pteil{flex:0 1 auto;min-width:3em;overflow:hidden;text-overflow:ellipsis}
+#jetzt .packzeile .pteil:empty{display:none}
+#jetzt .packzeile .pknopf,#jetzt .packzeile .prest{flex:none}
+.merknotiz{color:var(--signal);font-weight:500}
+#jetzt .merknotiz{color:var(--fuss-text)}
+.zkarte .merknotiz{align-self:center;margin-left:4px}
+.zufallkopf .ruht{opacity:.45}
+
+/* Paket 6: Mehrfachauswahl und Bearbeiten. Markiert: Signalfarbe schwach über dem Grund (in jedem Stil die eine
+   Farbe, die es schon gibt); die spielende Zeile behält ihr Aussehen und bekommt dazu einen Rahmen in der Signalfarbe. */
+tbody tr.markiert:not(.aktiv){background:var(--linie2);background:color-mix(in srgb,var(--signal) 15%,var(--grund))}
+tbody tr.markiert:not(.aktiv):hover{background:var(--linie2);background:color-mix(in srgb,var(--signal) 22%,var(--grund))}
+tbody tr.aktiv.markiert{outline:2px solid var(--signal);outline:2px solid color-mix(in srgb,var(--signal) 60%,transparent);outline-offset:-2px}
+.hz{font-style:normal;color:var(--sehrleise);margin-left:3px}
+#jetzt .hz{color:var(--fuss-leise)}
+#jetzt .kfeld{cursor:pointer;text-decoration:underline dotted transparent;text-underline-offset:2px}
+#jetzt .kfeld:hover{text-decoration-color:currentColor}
+thead th .sortwahl{margin-left:6px;padding:0 2px;font:inherit;font-size:11px;border:none;background:none;color:var(--sehrleise);cursor:pointer;text-transform:none;letter-spacing:0;max-width:8.6em}
+thead th .sortwahl.an{color:var(--text)}
+#jetzt .auswahlzeile{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#jetzt .ziehgriff{text-decoration:underline dotted;text-underline-offset:2px;cursor:grab}
+#jetzt .ziehgriff:hover{color:var(--fuss-text)}
+/* Bearbeiten: zwei Spalten Felder in der Breite der Fußspalte; ungültig und Fehler in der Warnfarbe des Fußes
+   (Rot liest sich auf Kobalt- und Lila-Blau nicht) */
+.korr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 8px;margin-top:3px;font-size:12px}
+.korr label{display:flex;flex-direction:column;color:var(--fuss-leise);min-width:0;line-height:1.35}
+.korr label > span{display:flex;gap:6px;align-items:baseline;white-space:nowrap}
+.korr input,.korr select{width:100%;min-width:0;font-size:12px;padding:1px 4px;background:var(--fuss);color:var(--fuss-text);border:1px solid var(--fuss-linie);border-radius:var(--rund)}
+.korr input::placeholder{color:var(--fuss-leise)}
+.korr .ungueltig{border-color:var(--fuss-warn);box-shadow:0 0 0 1px var(--fuss-warn)}
+.korr .kauf{font-size:11px;color:var(--fuss-leise)}
+.korr.speichert{opacity:.55}
+.korrfuss{grid-column:1/-1;color:var(--fuss-leise);line-height:1.5}
+/* schmal ist die Seite in manchen Stilen breiter als das Fenster (417 bis 499 px bei 390); das Formular bleibt im
+   Sichtbaren: Fenster minus Rand 16, Play 44 und Abstand 14 links, Rand 16 rechts (Prüfer Paket 6) */
+@media (max-width:860px){ .korr{max-width:calc(100vw - 90px)} }
+.korrfehler{color:var(--fuss-warn)}
+
+/* Paket 7: Lizenz pro Pack. Die Ansicht ersetzt die Liste (Tabelle wie die Liste, gleiche Linien und Schrift);
+   gewählter Entscheid in der Signalfarbe wie ein gedrückter Chip, Fehler und Splice-Hinweis in der Warnfarbe. */
+#listenbereich.lizenzmodus > :not(#lizenzAnsicht){display:none!important}
+.lzkopf{padding:10px 12px 8px;border-bottom:1px solid var(--linie);display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.lzkopf strong{font-weight:600}
+.lzkopf .textknopf{color:var(--leise)}
+.lzkopf .textknopf:hover{color:var(--text)}
+.lzwerkzeug{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:4px}
+.lzwerkzeug input[type=search]{width:min(260px,100%)}
+.lzwerkzeug label.schalter{margin-top:0}
+.lztabelle{overflow-x:auto}
+.lztabelle table{min-width:760px}
+.lztabelle thead th{cursor:default;top:0}
+.lztabelle tbody tr{cursor:default}
+.lztabelle td{vertical-align:top;padding-top:7px;padding-bottom:7px}
+.lztabelle col.lz-pack{width:30%}
+.lztabelle col.lz-n{width:64px}
+.lztabelle col.lz-herk{width:76px}
+.lztabelle col.lz-grund{width:24%}
+.lztabelle col.lz-ent{width:200px}
+.lztabelle col.lz-beleg{width:22%}
+.lztabelle td.lz-pack{white-space:normal;word-break:break-word}
+.lztabelle td.lz-pack .packlink{font-family:var(--schrift-name)}
+.lztabelle td.lz-pack .packlink:hover{text-decoration:underline}
+.lztabelle td.lz-grund{color:var(--leise);font-size:12px}
+.lztabelle td.lz-herk{color:var(--leise);font-size:12px;white-space:normal}
+.lztabelle td.lz-n,.lztabelle th.lz-n{text-align:right}
+.lztabelle td.lz-ent{white-space:normal}
+.lzwahl{display:flex;gap:4px;flex-wrap:wrap}
+.lzwahl button{font-size:12px;padding:1px 7px}
+.lzwahl button[aria-pressed=true]{background:var(--signal);border-color:var(--signal);color:var(--auf-signal)}
+.lzhinweis,.lzfehler{font-size:11px;color:var(--warn);margin-top:3px;line-height:1.35}
+.lztabelle td.lz-beleg input{width:100%;font-size:12px;padding:2px 5px}
+.lztabelle tr.speichert td{opacity:.55}
+.lztabelle tr.spaeter td{color:var(--sehrleise)}
+.lztabelle tr.spaeter .packlink{color:var(--leise)}
+.lztabelle tr.lzgruppe td{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--leise);padding-top:14px}
+.lztabelle tr.lzgruppe:hover{background:none}
+.lztabelle tr.skelett td div{height:10px;background:var(--flaeche);border-radius:1px;animation:puls 1.2s ease-in-out infinite}
+.lzmehr{padding:10px 12px;font-size:12px}
+/* schmal: Herkunft und Grund fallen weg, damit Pack, Entscheid und Beleg ohne seitliches Scrollen passen */
+@media (max-width:860px){
+  .lztabelle table{min-width:540px}
+  .lztabelle .lz-herk,.lztabelle .lz-grund{display:none}
+  .lztabelle col.lz-pack{width:auto}
+  .lztabelle col.lz-beleg{width:30%}
+}
+/* über einer Playlist: ja · offen · nein, der aktive Teil kräftig */
+.lizenzzeile .textknopf{color:var(--leise)}
+.lizenzzeile .textknopf:hover{color:var(--text)}
+.lizenzzeile .textknopf.an{color:var(--text);font-weight:600;text-decoration-style:solid}
+
+/* ---------- Linke Spalte (24.10.2026, VORSCHLAG-SEITENLEISTE.md): ruhig statt gleich laut. Fläche nur bei Auswahl, Zahlen
+   nur mit gesetzten Filtern (Klasse zahlen) oder beim Drüberfahren, Köpfe leiser als der Inhalt, Klappköpfe mit
+   Zusammenfassung. Farben als --sp-*, je Stil in seiner Datei gesetzt; Pfeil und Kreuz aus CSS, nie aus einer Schrift. */
+#filter{
+  --sp-text:var(--leiste-text); --sp-leise:var(--leiste-leise); --sp-blass:var(--leiste-leise);
+  --sp-hover:rgba(127,127,127,.14); --sp-ort-an:rgba(127,127,127,.18); --sp-marke:rgba(127,127,127,.16);
+  --sp-an:var(--signal); --sp-an-text:var(--auf-signal); --sp-raus:var(--nein);
+  --sp-spur:rgba(127,127,127,.16); --sp-daumen:var(--leiste-text); --sp-daumen-text:var(--leiste); --sp-daumen-schatten:none;
+  --sp-rund-chip:var(--rund); --sp-rund-seg:var(--rund); --sp-klebe:var(--leiste); --sp-linie:var(--leiste-linie); --sp-oben:10px;
+  padding:var(--sp-oben) 14px 24px 16px}
+#filter .spaltenhinweis{font-size:11.5px;line-height:1.35;color:var(--sp-leise);margin:0 0 8px}
+/* gesetzte Filter: klebt beim Scrollen oben */
+#filter .aktivzeile{position:sticky;top:calc(-1 * var(--sp-oben));z-index:3;display:flex;flex-wrap:wrap;gap:4px;align-items:center;
+  margin:calc(-1 * var(--sp-oben)) -8px 8px;padding:var(--sp-oben) 8px 8px;background:var(--sp-klebe);border-bottom:1px solid var(--sp-linie)}
+#filter .aktivmarken{display:contents}
+#filter .fmarke{display:inline-flex;align-items:center;max-width:100%;background:var(--sp-marke);border-radius:var(--sp-rund-chip);
+  font-size:12px;line-height:1.4;color:var(--sp-text)}
+#filter .fmarke.fest{padding:2px 8px;color:var(--sp-leise)}
+#filter .markentext{border:none;background:none;padding:2px 1px 2px 8px;color:inherit;font-size:12px;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px}
+#filter .markex{border:none;background:none;padding:0;width:20px;align-self:stretch;display:grid;place-items:center;color:inherit;opacity:.65;border-radius:0 var(--sp-rund-chip) var(--sp-rund-chip) 0}
+#filter .markex:hover{opacity:1;background:var(--sp-hover)}
+#filter .markex i{width:9px;height:9px;position:relative;display:block}
+#filter .markex i::before,#filter .markex i::after{content:"";position:absolute;left:4px;top:0;width:1.3px;height:9px;background:currentColor;transform:rotate(45deg)}
+#filter .markex i::after{transform:rotate(-45deg)}
+#filter #zuruecksetzen{margin:0 0 0 auto;width:auto;border:none;background:none;border-radius:0;padding:2px 0;font-size:12px;color:var(--sp-leise);
+  text-decoration:underline;text-decoration-style:solid;text-decoration-color:currentColor;text-underline-offset:2px;box-shadow:none}
+#filter #zuruecksetzen:hover{color:var(--sp-text)}
+/* Orte: Textliste wie eine Mac-Seitenleiste */
+#filter .orte{display:flex;flex-direction:column;margin:0 -6px}
+#filter .ortzeile{display:flex;align-items:center;position:relative;min-width:0}
+#filter .ort{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;border:none;border-radius:5px;padding:1.5px 6px;
+  font-size:13px;line-height:1.35;text-align:left;color:var(--sp-text);background:none;cursor:pointer}
+#filter .ort .ortname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#filter .ort .n{margin-left:auto;font-size:11.5px;color:var(--sp-leise);font-variant-numeric:tabular-nums;font-family:inherit}
+#filter .ort:hover{background:var(--sp-hover)}
+#filter .ort.an{background:var(--sp-ort-an);font-weight:600}
+#filter .ort.still{color:var(--sp-leise)}
+#filter .ort.neu{flex:none;color:var(--sp-leise);font-size:12px;margin-top:1px}
+/* umbenennen, löschen: erst nach kurzem Verweilen, damit ein schneller Klick auf die Zeile die Playlist wählt */
+#filter .ortknoepfe{display:flex;visibility:hidden;position:absolute;right:2px;top:0;bottom:0;align-items:center;gap:2px;background:var(--sp-klebe);border-radius:5px}
+#filter .ortzeile:hover .ortknoepfe{visibility:visible;transition:visibility 0s .6s}
+#filter .ortknoepfe:focus-within{visibility:visible}
+#filter .ortknoepfe .klein{opacity:1;color:var(--sp-leise);padding:0 4px}
+#filter .ortknoepfe .klein:hover{color:var(--sp-text);border-color:transparent;text-decoration:underline}
+#filter .ortmenue{display:flex;gap:12px;padding:1px 6px 4px 18px;font-size:12px;color:var(--sp-leise)}
+#filter .ortmenue .textknopf{color:var(--sp-text)}
+#filter .ortzeile.frage{display:block;font-size:12px;padding:2px 6px;color:var(--sp-text)}
+#filter .ortzeile.frage .textknopf{color:var(--sp-text)}
+#filter .ortzeile input{width:100%;font-size:12px;padding:2px 6px}
+/* Umschalter Alle | Loops | One-Shots und zwei Schalter */
+#filter .spaltensegment{display:grid;grid-template-columns:repeat(3,1fr);width:100%;margin-top:14px;padding:2px;
+  background:var(--sp-spur);border-radius:calc(var(--sp-rund-seg) + 2px)}
+#filter .spaltensegment button{border:none;margin:0;padding:3px 0;border-radius:var(--sp-rund-seg)!important;font-size:12px;line-height:1.35;
+  color:var(--sp-text);background:none;box-shadow:none}
+#filter .spaltensegment button[aria-pressed=true]{background:var(--sp-daumen);color:var(--sp-daumen-text);font-weight:600;box-shadow:var(--sp-daumen-schatten)}
+#filter .schalterreihe{display:flex;gap:14px;margin-top:8px}
+#filter .punkt{display:inline-flex;align-items:center;gap:6px;border:none;background:none;padding:0;font-size:12px;line-height:1.35;
+  color:var(--sp-leise);cursor:pointer;white-space:nowrap;margin:0}
+#filter .punkt::before{content:"";width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;flex:none;box-sizing:border-box}
+#filter .punkt[aria-pressed=true],#filter label.punkt:has(input:checked){color:var(--sp-text)}
+#filter .punkt[aria-pressed=true]::before,#filter label.punkt:has(input:checked)::before{background:currentColor}
+/* label.punkt hält das versteckte Feld: ohne position bezog es sich auf body und machte die Seite bei 390 px länger,
+   das Mausrad rollte dann nach dem Ende der Spalte die ganze Seite weg (Kopf und „alles lösen“ oben raus) */
+#filter label.punkt{position:relative}
+#filter label.punkt input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+#filter label.punkt:has(input:focus-visible){outline:2px solid var(--signal);outline-offset:2px}
+#filter .punkt.ruht{opacity:.7}
+/* Gruppen und Köpfe: Kopf leiser als der Inhalt; rechts Zusammenfassung, Satz (Regel 6) oder ein Text-Schalter */
+#filter .gruppe{margin-top:13px;border-radius:6px}
+#filter .gruppe.blitz{animation:spblitz .9s ease-out}
+@keyframes spblitz{from{background:var(--sp-hover)}to{background:transparent}}
+#filter .kopf{display:flex;align-items:baseline;gap:8px;margin:0 0 4px;font-size:12px;font-weight:600;color:var(--sp-leise);min-width:0}
+#filter .kopfknopf{display:inline-flex;align-items:center;gap:6px;border:none;background:none;padding:0;margin:0;font:inherit;color:inherit;cursor:default;flex:none}
+#filter .kopfknopf:disabled{opacity:1}
+#filter .kopfknopf.klapp{cursor:pointer}
+#filter .kopfknopf.klapp::before{content:"";width:0;height:0;border-left:4px solid currentColor;border-top:3.5px solid transparent;border-bottom:3.5px solid transparent;transition:transform .15s}
+#filter .kopfknopf.klapp[aria-expanded=true]::before{transform:rotate(90deg)}
+#filter .kopf .rechts{margin-left:auto;font-weight:400}
+#filter .kopf .info{margin-left:auto;font-weight:400;font-size:11.5px;color:var(--sp-blass);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#filter .kopf .info:empty{display:none}
+#filter .kopf .info:not(:empty) ~ .rechts{display:none}
+#filter .kopf .wert{margin-left:auto;font-weight:400;font-size:11.5px;color:var(--sp-blass);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#filter .kopf .wert.gesetzt{color:var(--sp-text);font-weight:500;font-size:12px}
+#filter .kopf .textknopf{color:var(--sp-leise);font-size:12px;text-decoration-style:solid;text-decoration-color:currentColor}
+#filter .kopf .textknopf:hover{color:var(--sp-text)}
+#filter .rahmenwahl{margin:0;font-size:12px;color:var(--sp-leise);display:inline-flex;align-items:center;gap:5px}
+#filter .rahmenwahl select{padding:1px 4px;font-size:12px}
+#filter .gruppe[data-gruppe=groove],#filter .gruppe[data-gruppe=vibe],#filter .gruppe[data-gruppe=mehr]{margin-top:12px}
+#filter .gruppe[data-gruppe=groove]{margin-top:16px}
+/* Chips: Text ohne Fläche und Rahmen; Fläche nur bei Auswahl */
+/* Spalte 8 px: das Minus (12 px, links am Chip angehängt) liegt im Zwischenraum und höchstens auf dem Innenrand des
+   Nachbarn, nie auf seinem Text (Prüfung 24.10.: bei 2 px Abstand und 18 px Minus fing es den Klick auf den Anfang von
+   „UKG/Garage“, „Snare“, „Becken“ ab, in WebKit Kobalt deckte das Minus von Clap die Mitte von „Hat“) */
+#filter .chips{display:flex;flex-wrap:wrap;gap:1px 8px;margin:0 -6px;padding-right:14px}
+#filter .chips + .chips{margin-top:3px}
+#filter .chip{border:none;background:none;box-shadow:none;border-radius:var(--sp-rund-chip);padding:2px 6px;font-size:12.5px;line-height:1.35;
+  color:var(--sp-text);white-space:nowrap;font-weight:400;text-decoration:none;opacity:1}
+#filter .chip:hover{background:var(--sp-hover)}
+#filter .chip .n{display:none;margin-left:4px;font-size:10.5px;color:var(--sp-leise);font-family:inherit;font-variant-numeric:tabular-nums;opacity:1}
+/* Platz für fünf Stellen („12.345“, gemessen 36,8 bis 37,9 px bei 10,5 px in allen Stilen), damit der Chip gleich breit
+   bleibt, egal welche Zahl gerade dasteht */
+#filter.zahlen .chip .n{display:inline-block;min-width:3.65em;text-align:left}
+/* Platzhalter für 0 und Ausgeschlossene: nimmt den Platz einer Zahl ein, zeigt nichts */
+#filter.zahlen .chip .n.nix{visibility:hidden}
+#filter .chipminus i{width:6px}
+/* ohne gesetzte Filter: die Zahl beim Drüberfahren als kleines Schild über dem Chip, ohne die Reihe zu verschieben
+   (inline sprang der Nachbar weg, und das Minus rutschte unter dem Zeiger davon) */
+#filter .chip{position:relative}
+#filter:not(.zahlen) .chipgruppe:hover .chip:not(.leer) .n:not(.nix),#filter:not(.zahlen) .tasten .chip:hover .n{display:block;position:absolute;z-index:4;left:50%;bottom:calc(100% - 1px);
+  transform:translateX(-50%);margin:0;padding:0 5px;border-radius:4px;background:var(--sp-klebe);color:var(--sp-text);line-height:15px;
+  box-shadow:0 0 0 .5px var(--sp-linie);pointer-events:none;white-space:nowrap}
+#filter.laedt .chip .n{opacity:.45}
+#filter .chip[aria-pressed=true]{background:var(--sp-an);color:var(--sp-an-text);font-weight:600}
+#filter .chip[aria-pressed=true] .n{color:var(--sp-an-text);opacity:.75;font-weight:400}
+#filter .chips .chip.leer,#filter .tasten .chip.leer{color:var(--sp-blass);opacity:1}
+#filter:not(.zahlen) .chip.leer .n{display:none!important}
+#filter .chip.raus{background:none;color:var(--sp-raus);text-decoration:line-through;box-shadow:none}
+#filter .chipminus{width:12px;border:none;background:var(--sp-klebe);color:var(--sp-leise);border-radius:0 var(--sp-rund-chip) var(--sp-rund-chip) 0;box-shadow:none}
+#filter .chipminus:hover{background:var(--sp-raus);color:var(--leiste)}
+#filter .chipgruppe.raus .chipminus{background:none;color:var(--sp-raus);box-shadow:none}
+#filter .chips.leise .chip:not([aria-pressed=true]):not(.raus){color:var(--sp-leise)}
+#filter .mehrknopf{display:inline-flex;align-items:center;gap:4px;border:none;background:none;padding:2px 6px;font-size:12px;color:var(--sp-leise);border-radius:var(--sp-rund-chip)}
+#filter .mehrknopf:hover{background:var(--sp-hover);color:var(--sp-text)}
+#filter .mehrknopf::after{content:"";width:0;height:0;border-top:4px solid currentColor;border-left:3.5px solid transparent;border-right:3.5px solid transparent}
+#filter .mehrknopf[aria-expanded=true]::after{transform:rotate(180deg)}
+/* Tempo, Takte, Mehr: Eingaben in einer Zeile */
+#filter .reihe{gap:6px}
+#filter .tempozeile input,#filter .takterahmen input,#filter .mehrzeile input[type=number]{width:52px;padding:3px 7px;font-size:12.5px;font-variant-numeric:tabular-nums}
+#filter .tempozeile .punkt{margin-left:auto}
+#filter .strich{color:var(--sp-leise);font-size:12px}
+#filter .takterahmen{margin-top:5px}
+#filter .mehrzeile{margin-top:6px}
+#filter .mehrzeile #pack{flex:1;min-width:0;padding:3px 7px;font-size:12.5px}
+#filter .etikett{width:40px;flex:none;font-size:12px;color:var(--sp-leise)}
+#filter .mehrschalter{margin-top:9px}
+#filter #vibeFilter{width:100%;padding:3px 8px;font-size:12.5px;margin:2px 0 2px}
+#filter .unterkopf{font-size:11.5px;color:var(--sp-leise);margin:7px 0 1px}
+#filter .innen > .unterkopf:first-child{margin-top:2px}
+#filter .leerhinweis{font-size:11.5px;line-height:1.35;color:var(--sp-leise);margin:4px 0 0}
+#filter .lizlink{margin-top:3px}
+#filter .lizlink .textknopf{font-size:12px;color:var(--sp-leise);text-decoration-style:solid}
+#filter .lizlink .textknopf:hover,#filter .lizlink .textknopf[aria-pressed=true]{color:var(--sp-text)}
+/* Tonart: Text im Raster, Dur oben, Moll mit etwas Luft darunter */
+#filter .tasten{display:grid;grid-template-columns:repeat(6,1fr);gap:0 2px;margin:0 -4px}
+#filter .tasten .chip{text-align:center;padding:2px 0;border-radius:var(--sp-rund-chip);font-family:inherit;font-variant-numeric:tabular-nums}
+#filter .tasten .chip:nth-child(13),#filter .tasten .chip:nth-child(13) ~ .chip:nth-child(-n+18){margin-top:5px}
+.leermarken:empty{display:none}
+.leermarken{display:block;margin-top:8px}
+@media (prefers-reduced-motion:reduce){#filter .gruppe.blitz{animation:none}#filter .kopfknopf.klapp::before{transition:none}}
+
+/* Warteschlange 1 (24.10.2026): Zeiger über der Wellenform kommt aus seite.html (zeigerWert); während eines Zugs gilt er
+   überall, damit die Maus die Welle verlassen darf, ohne dass Knöpfe darunter ihren Zeiger zeigen */
+html.welle-zug body,html.welle-zug body *{cursor:inherit!important}
+
+/* Einstellungen: eigene Ordner und Freesound (Musiker-Test 03.11.2026). Tabelle statt Karten: ein Ordner ist eine Zeile
+   mit Pfad, Zahl und zwei Handgriffen */
+.ordnertab{border-collapse:collapse;max-width:980px;width:100%;margin:0 0 10px}
+.ordnertab td{padding:6px 12px 6px 0;border-bottom:1px solid var(--linie2);vertical-align:baseline}
+.ordnertab .opfad{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}
+.ordnertab .ozahl{white-space:nowrap;color:var(--leise);font-variant-numeric:tabular-nums}
+.ordnertab .oknoepfe{white-space:nowrap;text-align:right}
+.ordnertab .oknoepfe .textknopf + .textknopf{margin-left:10px}
+.ordnerneu{flex-wrap:wrap;max-width:980px}
+.ordnerneu input{flex:1 1 260px;min-width:0}
+.ordnerstatus{min-height:20px;margin:8px 0 0;color:var(--text);font-size:13px}
+.werkzeugzeile{margin:6px 0 0;color:var(--leise);font-size:12px}
+.werkzeugzeile .wfehlt{color:var(--warn)}
+.werkzeugzeile code,.fsschritte code{font-size:12px}
+.fsschritte{margin:0 0 12px;padding-left:20px;max-width:820px;color:var(--leise)}
+.fsschritte li{margin:3px 0}
+.fsreihe{flex-wrap:wrap;max-width:980px}
+.fsreihe input{flex:0 1 240px;min-width:0}
+.knopflink{display:inline-block;border:1px solid var(--linie2);border-radius:var(--rund);padding:3px 8px;color:inherit;text-decoration:none}
+.knopflink:hover{border-color:var(--leise)}
+.fsschritte a{color:inherit;text-underline-offset:2px}
+#einst .einstabschnitt{margin-top:30px}
+/* Konten im Netz-Reiter (03.11.2026): eine Zeile, je Anbieter Name, Zustand, ein Handgriff */
+.konten{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;margin:2px 0 12px;font-size:13px}
+.konten .konto{display:inline-flex;gap:8px;align-items:baseline}
+.konten .konto.an b::after{content:"";display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:var(--ok);vertical-align:1px}
+.konten a{color:inherit}
+.nativ .ezeile[data-s]{cursor:grab}
+.ezeile.laedt{opacity:.6}
+/* Streifen „Von Looperman“ (Konten 03.11.2026): zuletzt übernommene Loops, Kachel = anhören und ziehen */
+.lmstreifen{margin:0 0 14px}
+.lmkopf{display:flex;gap:10px;align-items:baseline;margin:0 0 6px;font-size:13px}
+.lmreihe{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.lmkachel{flex:0 0 220px;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;padding:7px 9px;
+  border:1px solid var(--linie2);border-radius:var(--rund);user-select:none;-webkit-user-select:none}
+.nativ .lmkachel{cursor:grab}
+.lmkachel:hover{border-color:var(--leise)}
+.lmkachel .spiel{grid-row:span 2;width:22px;height:22px}
+.lmname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.lmwerte{font-size:12px;color:var(--leise);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lmleer{margin:0}
+label.ziehenwahl select{margin-left:8px}

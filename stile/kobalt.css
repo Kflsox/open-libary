@@ -1,0 +1,64 @@
+/* Kobalt: eine Farbe, voll gesetzt. Filterleiste und Player in Kobaltblau, die Liste schwarz auf Weiß.
+   Kein zweiter Farbton, Auswahl wird durch Umkehr gezeigt; Schrift kräftig und eng. */
+:root{
+  --grund:#f7f7f4; --flaeche:#ecece7; --zeile:#e3e6fb; --linie:#e1e1db; --linie2:#c9c9c2;
+  --text:#0d0d0d; --leise:#5a5a55; --sehrleise:#8d8d86;
+  --signal:#2337d6; --auf-signal:#ffffff; --ok:#14804a; --warn:#a36400; --nein:#c8241b;
+  --leiste:#2337d6; --leiste-text:#ffffff; --leiste-leise:#aab4ff; --leiste-linie:#4a5be0;
+  --fuss:#2337d6; --fuss-text:#ffffff; --fuss-leise:#c2c9ff; --fuss-linie:#4a5be0; --fuss-warn:#ffd27a;
+  --welle-an:#ffffff; --welle-aus:#6e7ce8; --welle-linie:#4a5be0;
+  --schrift:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Roboto, Ubuntu, sans-serif;
+  --groesse:13px; --rund:3px; --zeile-hoch:7px; --seite-breit:264px;
+  color-scheme:light;
+}
+header{background:#2337d6;color:#fff;border-bottom:none;padding:12px 16px}
+.marke{font-size:15px;font-weight:800;letter-spacing:-.01em;text-transform:none}
+.reiter button{color:#aab4ff;font-weight:600}
+.reiter button[aria-selected=true]{color:#fff;border-bottom-color:#fff}
+#suche{background:#fff;border:none;color:#0d0d0d;font-weight:500}
+#zaehler{color:#c2c9ff}
+aside{border-right:none}
+aside h3{color:#fff;font-weight:800;letter-spacing:.02em;text-transform:none;font-size:12px}
+.chip{border-color:transparent;background:rgba(255,255,255,.1);font-weight:500}
+.chip:hover{background:rgba(255,255,255,.2)}
+.chip[aria-pressed=true]{background:#fff;color:#2337d6;border-color:#fff}
+.chip[aria-pressed=true] .n{color:#2337d6}
+.chip.raus{background:#0d0d0d;color:#ff8f86;border-color:#0d0d0d;text-decoration-color:#ff8f86}
+.chip.raus .n{color:#ff8f86}
+aside input,aside select{background:rgba(255,255,255,.12);border-color:transparent}
+aside input::placeholder{color:#aab4ff}
+/* linke Spalte (24.10.2026): Auswahl durch Umkehr wie bisher (weiß mit Kobaltschrift), sonst Text ohne Fläche */
+#filter{--sp-leise:#aab4ff; --sp-blass:rgba(255,255,255,.5); --sp-hover:rgba(255,255,255,.12); --sp-ort-an:rgba(255,255,255,.12);
+  --sp-marke:rgba(255,255,255,.16); --sp-an:#ffffff; --sp-an-text:#2337d6; --sp-raus:#ff8f86; --sp-spur:rgba(0,0,0,.18);
+  --sp-daumen:#ffffff; --sp-daumen-text:#2337d6; --sp-linie:rgba(255,255,255,.16)}
+thead th{font-weight:800;color:#0d0d0d;text-transform:none;letter-spacing:0;font-size:12px}
+td.name .t{font-weight:600}
+tbody tr.aktiv{background:#0d0d0d;color:#fff;box-shadow:none}
+tbody tr.aktiv .p,tbody tr.aktiv .tags span,tbody tr.aktiv .quelle{color:#9a9a96}
+tbody tr.aktiv .spiel{background:#2337d6;border-color:#2337d6}
+.liz{font-weight:700;border:none;padding:1px 0}
+#playKnopf{background:#fff;color:#2337d6;border-color:#fff}
+footer button{background:rgba(255,255,255,.1);border-color:transparent}
+#jetzt .t{font-weight:800;font-size:15px}
+#jetzt .liz.ja,#jetzt .liz.unklar,#jetzt .liz.nein,#jetzt .liz.ungeprüft{color:#fff}
+tbody tr.aktiv .aktionen button{color:#fff;border-color:#555}
+
+/* Mit Liquid Glass (Klasse glas, Material aus glasschicht.css): Kopf und Player als blau getöntes Glas, Schrift weiß wie
+   bisher. Tönung so dicht, dass weiße Schrift auch über der hellsten Zeile 4,5:1 hält; Nebentexte dafür heller. */
+html.glas{
+  --spalte-rand:var(--leiste);   /* Spalte ohne Rand, der Grund links (glasschicht.css) auch nicht */
+  --glas:rgba(35,55,214,.90); --glas-deckend:#2337d6; --glas-dicht:rgba(246,247,255,.94); --glas-probe:#2337d6;
+  --glas-schatten:0 10px 30px rgba(20,30,130,.26),0 1px 3px rgba(20,30,130,.16);
+  --glas-innen:inset 0 .5px 0 rgba(255,255,255,.45),inset 0 0 0 .5px rgba(255,255,255,.16);
+  --menue-schatten:0 12px 40px rgba(20,30,130,.18),0 1px 3px rgba(0,0,0,.08);
+  --glanz:.05; --kante1:rgba(255,255,255,.72); --kante2:rgba(255,255,255,.10); --kante3:rgba(255,255,255,.38);
+  /* Füllungen dunkler statt heller: weiße Schrift auf blauem Glas verliert sonst Kontrast (gemessen 3,6:1 mit heller Spur);
+     Nebentexte im Fuß weiß, mit .86 Tönung lag die Pack-Zeile über der hellsten Zeile bei 4,1:1 */
+  --kopf-text:#ffffff; --kopf-fuellung:rgba(8,14,90,.24); --kopf-fuellung2:rgba(8,14,90,.36);
+  --fuss-leise:#ffffff; --fuss-linie:rgba(255,255,255,.22); --fuss-fuellung:rgba(8,14,90,.22);
+  --segment-spur:rgba(8,14,90,.24); --segment-daumen:#ffffff; --segment-text:#1a2bb8; --segment-schatten:0 2px 6px rgba(10,20,100,.3);
+  --welle-aus:rgba(255,255,255,.45); --welle-linie:rgba(255,255,255,.2);
+  --play-schatten:0 2px 8px rgba(10,20,100,.35);
+}
+html.glas #zaehler{color:#ffffff}
+html.glas #suche{border:none}

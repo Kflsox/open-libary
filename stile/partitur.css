@@ -1,0 +1,51 @@
+/* Partitur: Notenpapier. Warmes Papierweiß, Tusche-Schwarz, Zinnober als einzige Farbe. Namen in Serifenschrift
+   wie auf einem gedruckten Programmheft; der Player ist ein schwarzer Balken wie die Fußzeile eines Notenblatts. */
+:root{
+  --grund:#f1ede3; --flaeche:#e9e4d6; --zeile:#e2dccb; --linie:#d6cfbd; --linie2:#bfb7a3;
+  --text:#1b1915; --leise:#6b6457; --sehrleise:#958d7c;
+  --signal:#d2401e; --auf-signal:#fff8f0; --ok:#3f7a3a; --warn:#9a6c10; --nein:#b02a17;
+  --leiste:#f1ede3; --leiste-linie:#1b1915;
+  --fuss:#1b1915; --fuss-text:#f1ede3; --fuss-leise:#a59e8f; --fuss-linie:#3b3830; --fuss-warn:#d4a23c;
+  --welle-an:#d2401e; --welle-aus:#5d584d; --welle-linie:#3b3830;
+  --schrift-name:"New York", ui-serif, Georgia, serif; --schrift-marke:"New York", ui-serif, Georgia, serif;
+  --groesse:13px; --rund:0; --zeile-hoch:8px; --seite-breit:270px;
+  color-scheme:light;
+}
+header{border-bottom:2px solid var(--text);padding:14px 20px}
+.marke{font-size:22px;font-weight:400;font-style:italic;letter-spacing:0;text-transform:none}
+.reiter button{font-variant:small-caps;letter-spacing:.06em;font-size:14px}
+#suche{background:transparent;border:none;border-bottom:1px solid var(--text);font-family:var(--schrift-name);font-size:16px;font-style:italic}
+aside{border-right:1px solid var(--text)}
+aside h3{font-family:var(--schrift-name);font-style:italic;font-weight:400;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text);
+  border-bottom:1px solid var(--linie);padding-bottom:3px}
+.chip{border:none;padding:2px 5px}
+.chip:hover{background:var(--flaeche)}
+.chip.raus{background:none}
+/* linke Spalte (24.10.2026): Köpfe kursiv in der Serifenschrift wie die Satzbezeichnungen, Auswahl in Zinnober */
+#filter{--sp-text:var(--text); --sp-leise:var(--leise); --sp-blass:#8f8778; --sp-hover:var(--flaeche); --sp-ort-an:var(--zeile);
+  --sp-marke:var(--flaeche); --sp-spur:var(--flaeche); --sp-daumen:var(--text); --sp-daumen-text:var(--grund); --sp-linie:var(--linie)}
+#filter .kopf{font-family:var(--schrift-name);font-style:italic;font-weight:400;font-size:13.5px;color:var(--text)}
+#filter .kopf .info,#filter .kopf .wert,#filter .kopf .rechts{font-family:var(--schrift);font-style:normal}
+thead th{border-bottom:2px solid var(--text);font-variant:small-caps;text-transform:none;font-size:13px;letter-spacing:.06em}
+td.name .t{font-size:15px}
+tbody tr.aktiv{box-shadow:inset 3px 0 0 var(--signal)}
+.liz{border:none;padding:0;font-variant:small-caps;font-size:12px;letter-spacing:.04em}
+#jetzt .t{font-size:17px;font-style:italic;font-weight:400}
+
+/* Mit Liquid Glass (Klasse glas, Material aus glasschicht.css): Kopf und Player als warmes Papierglas mit Tusche-Schrift,
+   Zinnober bleibt die eine Farbe (Abspielen, gespielte Welle). Der schwarze Fußbalken wird dafür hell. */
+html.glas{
+  --spalte-rand:var(--text);     /* der Tuschestrich der Spalte läuft im Grund weiter, hinter Kopf und Player */
+  --glas:rgba(244,240,230,.76); --glas-deckend:#f1ede3; --glas-dicht:rgba(245,241,232,.95); --glas-probe:#f1ede3;
+  --glas-schatten:0 8px 26px rgba(60,40,15,.14),0 1px 3px rgba(60,40,15,.10);
+  --glas-innen:inset 0 .5px 0 rgba(255,253,246,.9),inset 0 0 0 .5px rgba(255,253,246,.4);
+  --menue-schatten:0 12px 40px rgba(60,40,15,.16),0 1px 3px rgba(60,40,15,.08);
+  --glanz:.32; --kante1:rgba(255,253,246,.95); --kante2:rgba(255,253,246,.2); --kante3:rgba(255,253,246,.6);
+  --kopf-fuellung:rgba(27,25,21,.06); --kopf-fuellung2:rgba(27,25,21,.11);
+  --fuss-text:#1b1915; --fuss-leise:#5c5547; --fuss-linie:rgba(27,25,21,.16); --fuss-warn:#875c0b; --fuss-fuellung:rgba(27,25,21,.07);
+  --welle-an:#d2401e; --welle-aus:rgba(27,25,21,.36); --welle-linie:rgba(27,25,21,.14);
+  --segment-spur:rgba(27,25,21,.07); --segment-daumen:#fffdf8; --segment-text:#1b1915; --segment-schatten:0 2px 6px rgba(60,40,15,.16);
+  --regler-an:#1b1915; --regler-aus:rgba(27,25,21,.18); --regler-griff:#fffdf8; --regler-schatten:0 1px 3px rgba(60,40,15,.3);
+  --play-schatten:0 2px 8px rgba(210,64,30,.3);
+}
+html.glas #suche{border:none;background:rgba(27,25,21,.06)}

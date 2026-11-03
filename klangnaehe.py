@@ -1,0 +1,243 @@
+"""Klang-Fingerabdruck im Server (Musiker-Test 03.11.2026): Brücke zu klang_dienst.py (Nachbarn) und klang_vektoren.py
+(Rechnen). Beide laufen in der gehoer-Umgebung; fehlt sie (andere Rechner), ist verfuegbar() falsch und „Ähnliche“
+bleibt beim Vergleich nach Art, Tempo und Tonart.
+
+Schlüssel einer Datei: ihre md5, ohne md5 „pfad:<Pfad>“ (wie klang_vektoren.py).
+"""
+import collections
+import hashlib
+import json
+import os
+import select
+import signal
+import sqlite3
+import subprocess
+import tempfile
+import threading
+import time
+from pathlib import Path
+
+try:
+    import fcntl              # nur Mac und Linux; den Klang-Fingerabdruck gibt es nur mit gehoer (nicht auf Windows)
+except ImportError:
+    fcntl = None
+
+HIER = Path(__file__).resolve().parent
+RUHE_S = 900            # Dienst nach 15 min ohne Anfrage beenden (hält die Vektoren im Speicher, rund 130 MB)
+ANTWORT_S = 20          # längste Wartezeit auf den Dienst (der erste Aufruf lädt alle Vektoren)
+MD5_BIS = 100 << 20     # wie ordner.py: größere Dateien ohne md5
+
+
+class DienstFehler(Exception):
+    """Der Klang-Dienst antwortet nicht oder falsch (nicht: „kein Fingerabdruck“)."""
+
+
+def schluessel(md5, pfad):
+    return md5 if md5 else "pfad:" + pfad
+
+
+def datei_schluessel(pfad):
+    try:
+        if os.path.getsize(pfad) > MD5_BIS:
+            return "pfad:" + pfad
+        h = hashlib.md5()
+        with open(pfad, "rb") as f:
+            for stueck in iter(lambda: f.read(1 << 20), b""):
+                h.update(stueck)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+class Klang:
+    def __init__(self, python, gehoer_code, db, prio, umgebung):
+        self.python, self.gehoer_code, self.db = Path(python), Path(gehoer_code), Path(db)
+        self.prio, self.umgebung = list(prio), dict(umgebung)
+        self.lock = threading.Lock()            # stdin/stdout des Dienstes: eine Anfrage zugleich
+        self.proc, self.zuletzt = None, 0.0
+        self.cache = collections.OrderedDict()  # (schluessel, stempel) -> {schluessel: kosinus} oder None
+        self.rlock = threading.Lock()           # Rechnen: höchstens ein Lauf
+        self.rechner, self.warte = None, []
+        self._zahl = (None, 0)
+        threading.Thread(target=self._wache, daemon=True, name="klang-wache").start()
+
+    # ---------------------------------------------------------- Stand
+    def verfuegbar(self):
+        return self.python.is_file() and (self.gehoer_code / "gehoer/klang.py").is_file()
+
+    def stempel(self):
+        try:
+            return tuple(os.stat(p).st_mtime for p in (self.db, Path(str(self.db) + "-wal")) if p.exists())
+        except OSError:
+            return ()
+
+    def _lesen(self, sql):
+        if not self.db.exists():
+            return []
+        con = sqlite3.connect(f"file:{self.db}?mode=ro", uri=True, timeout=5)
+        try:
+            return con.execute(sql).fetchall()
+        finally:
+            con.close()
+
+    def zahl(self):
+        st = self.stempel()
+        if self._zahl[0] != st:
+            try:
+                self._zahl = (st, self._lesen("SELECT count(*) FROM vektoren")[0][0])
+            except (sqlite3.Error, IndexError):
+                self._zahl = (st, 0)
+        return self._zahl[1]
+
+    def stand(self):
+        d = {"verfuegbar": self.verfuegbar(), "zahl": 0, "laeuft": False, "fertig": 0, "gesamt": 0, "fehler": 0}
+        if not d["verfuegbar"]:
+            return d
+        d["zahl"] = self.zahl()
+        with self.rlock:
+            d["laeuft"] = self._laeuft()
+            d["wartet"] = len(self.warte)
+        try:
+            lauf = dict(self._lesen("SELECT k, v FROM meta")).get("lauf", "")
+            pid, start, fertig, gesamt = (lauf.split() + ["0"] * 4)[:4]
+            d.update(fertig=int(fertig), gesamt=int(gesamt), start=float(start))
+            d["fehler"] = self._lesen("SELECT count(*) FROM fehler")[0][0]
+        except (sqlite3.Error, ValueError, IndexError):
+            pass
+        return d
+
+    # ---------------------------------------------------------- Nachbarn
+    def _dienst(self):
+        if self.proc is not None and self.proc.poll() is None:
+            return self.proc
+        self.proc = subprocess.Popen([str(self.python), "-I", str(HIER / "klang_dienst.py"), str(self.db)],
+                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                     text=True, bufsize=1)
+        return self.proc
+
+    def _frage(self, anfrage):
+        with self.lock:
+            p = self._dienst()
+            self.zuletzt = time.time()
+            try:
+                p.stdin.write(json.dumps(anfrage) + "\n")
+                p.stdin.flush()
+                bereit, _, _ = select.select([p.stdout], [], [], ANTWORT_S)
+                if not bereit:
+                    raise TimeoutError("Klang-Dienst antwortet nicht")
+                zeile = p.stdout.readline()
+                if not zeile:
+                    raise EOFError("Klang-Dienst beendet")
+                return json.loads(zeile)
+            except (OSError, ValueError, TimeoutError, EOFError):
+                p.kill()
+                self.proc = None
+                return None
+
+    def nachbarn(self, k, n=4000):
+        """{schluessel: kosinus} der n nächsten, oder None (kein Fingerabdruck für k). Geht der Dienst nicht:
+        DienstFehler (nicht gemerkt, damit der nächste Aufruf neu fragt)."""
+        if not self.verfuegbar() or not self.db.exists():
+            return None
+        c = (k, n, self.stempel())
+        if c in self.cache:
+            self.cache.move_to_end(c)
+            return self.cache[c]
+        a = self._frage({"nah": k, "k": n})
+        if not a or not a.get("ok"):
+            raise DienstFehler((a or {}).get("fehler") or "Klang-Dienst antwortet nicht")
+        erg = {s: w for s, w in a["nah"]} if a["nah"] is not None else None
+        self.cache[c] = erg
+        while len(self.cache) > 64:
+            self.cache.popitem(last=False)
+        return erg
+
+    def _wache(self):
+        while True:
+            time.sleep(60)
+            with self.lock:
+                if self.proc is not None and self.proc.poll() is None and time.time() - self.zuletzt > RUHE_S:
+                    self.proc.terminate()
+                    self.proc = None
+            with self.rlock:       # Aufträge, die auf einen fremden Lauf gewartet haben, nachholen
+                if self.warte and not self._laeuft():
+                    self._starten(["--liste", self._liste_schreiben()])
+
+    def _fremder_lauf(self):
+        """Hält ein anderer Prozess die Sperre von klang_vektoren.py (Lauf aus einem früheren Serverstart)?"""
+        if fcntl is None:
+            return False
+        try:
+            with open(str(self.db) + ".lauf", "a") as f:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(f, fcntl.LOCK_UN)
+            return False
+        except OSError:
+            return True
+
+    def _laeuft(self):
+        """Aufrufer hält rlock."""
+        return (self.rechner is not None and self.rechner.poll() is None) or self._fremder_lauf()
+
+    # ---------------------------------------------------------- Rechnen
+    def rechnen_lassen(self, auftraege):
+        """auftraege: [(schluessel, pfad)]. Im Hintergrund, nacheinander, mit niedriger Priorität."""
+        if not self.verfuegbar() or not auftraege:
+            return
+        with self.rlock:
+            self.warte.extend(auftraege)
+            if self._laeuft():          # danach (eigener Lauf: _nach_lauf, fremder Lauf: _wache)
+                return
+            self._starten(["--liste", self._liste_schreiben()])
+
+    def alle_rechnen(self):
+        if not self.verfuegbar():
+            return False, "Klang-Fingerabdruck braucht gehoer (gibt es nur auf Jeremias' Rechner)"
+        with self.rlock:
+            if self._laeuft():
+                return False, "Läuft schon"
+            self.warte = []
+            self._starten(["--alle"])
+        return True, "Rechnet im Hintergrund; die Zahl oben steigt"
+
+    def anhalten(self):
+        with self.rlock:
+            self.warte = []
+            if self.rechner is not None and self.rechner.poll() is None:
+                self.rechner.terminate()
+                return True
+            if self._fremder_lauf():     # Lauf aus einem früheren Serverstart: pid steht in meta „lauf“
+                try:
+                    pid = int((dict(self._lesen("SELECT k, v FROM meta")).get("lauf", "0").split() or ["0"])[0])
+                    if pid > 0:
+                        os.kill(pid, signal.SIGTERM)
+                        return True
+                except (sqlite3.Error, ValueError, OSError):
+                    pass
+        return False
+
+    def _liste_schreiben(self):
+        fd, pfad = tempfile.mkstemp(prefix="openlibary-klang-", suffix=".tsv")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            for k, p in self.warte:
+                f.write(f"{k}\t{p}\n")
+        self.warte = []
+        return pfad
+
+    def _starten(self, argumente):
+        """Aufrufer hält rlock."""
+        self.rechner = subprocess.Popen(self.prio + [str(self.python), "-I", str(HIER / "klang_vektoren.py")] + argumente,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                        env=dict(os.environ, **self.umgebung))
+        threading.Thread(target=self._nach_lauf, args=(self.rechner, argumente), daemon=True).start()
+
+    def _nach_lauf(self, proc, argumente):
+        proc.wait()
+        if argumente[0] == "--liste":
+            try:
+                os.unlink(argumente[1])
+            except OSError:
+                pass
+        with self.rlock:
+            if self.warte and (self.rechner is proc):
+                self._starten(["--liste", self._liste_schreiben()])

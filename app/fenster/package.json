@@ -1,0 +1,78 @@
+{
+  "name": "open-libary",
+  "productName": "Open Libary",
+  "version": "1.1.0",
+  "description": "Sample-Bibliothek: eigene Ordner, freie Sounds aus dem Netz, Ziehen in die DAW",
+  "homepage": "http://127.0.0.1:8765/",
+  "main": "main.js",
+  "private": true,
+  "devDependencies": {
+    "electron": "44.9.1",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "de.jeremias.openlibary",
+    "productName": "Open Libary",
+    "files": [
+      "main.js",
+      "preload.js",
+      "ziehen.png"
+    ],
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Audio",
+      "maintainer": "Open Libary",
+      "synopsis": "Sample-Bibliothek mit Ziehen in die DAW"
+    },
+    "extraResources": [
+      {
+        "from": "res/python",
+        "to": "python"
+      },
+      {
+        "from": "res/openlibary",
+        "to": "openlibary"
+      }
+    ],
+    "deb": {
+      "depends": [
+        "libgtk-3-0 | libgtk-3-0t64",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0 | libatspi2.0-0t64",
+        "libuuid1",
+        "libsecret-1-0"
+      ]
+    }
+  }
+}

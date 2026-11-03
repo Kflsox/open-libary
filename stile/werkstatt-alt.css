@@ -1,0 +1,27 @@
+/* Werkstatt (bisheriger Look, zum Vergleich): warmes Dunkelbraun, Bernstein als einzige Signalfarbe */
+:root{
+  --grund:#161512; --flaeche:#1d1c18; --zeile:#24221d; --linie:#2e2c26; --linie2:#3a3730;
+  --text:#e9e4d8; --leise:#9a9384; --sehrleise:#6c665a;
+  --signal:#f29b2a; --auf-signal:#1a1206; --ok:#8fb573; --warn:#d9b44a; --nein:#c76b5c;
+  --welle-aus:#5c574b; --welle-linie:#2e2c26;
+  color-scheme:dark;
+}
+/* linke Spalte (24.10.2026): Auswahl in Bernstein, blasse Werte dunkler Sand */
+#filter{--sp-blass:#6f695c; --sp-hover:var(--flaeche); --sp-ort-an:var(--zeile); --sp-marke:var(--zeile); --sp-spur:var(--flaeche);
+  --sp-daumen:var(--linie2); --sp-daumen-text:var(--text)}
+
+/* Mit Liquid Glass (Klasse glas, Material aus glasschicht.css): Kopf und Player als dunkles, braun getöntes Glas mit
+   bernsteinfarbener Lichtkante; Bernstein bleibt die eine Farbe (Abspielen, gespielte Welle). */
+html.glas{
+  --glas:rgba(30,25,18,.78); --glas-deckend:#1d1c18; --glas-dicht:rgba(31,28,23,.95); --glas-probe:#2a2218;
+  --glas-schatten:0 10px 34px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.4);
+  --glas-innen:inset 0 .5px 0 rgba(255,214,160,.22),inset 0 0 0 .5px rgba(255,214,160,.08);
+  --menue-schatten:0 12px 40px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.3);
+  /* Bernstein-Lichtkante kräftiger und ein warmer Schimmer unter dem Player (Kritik 24.10. abends) */
+  --glanz:.07; --kante1:rgba(255,190,110,.72); --kante2:rgba(255,190,110,.08); --kante3:rgba(255,190,110,.36);
+  --glas-schimmer:radial-gradient(46% 100% at 50% 100%,rgba(242,155,42,.16),transparent 78%);
+  --kopf-fuellung:rgba(233,228,216,.08); --kopf-fuellung2:rgba(233,228,216,.14);
+  --fuss-leise:#bbb3a2; --fuss-linie:rgba(233,228,216,.12); --fuss-fuellung:rgba(233,228,216,.09);
+  --segment-spur:rgba(233,228,216,.08); --segment-daumen:#4a453b; --segment-text:#f3efe6; --segment-schatten:0 2px 6px rgba(0,0,0,.4);
+  --play-schatten:0 2px 10px rgba(242,155,42,.30);
+}

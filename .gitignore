@@ -1,0 +1,41 @@
+# Nur was hier ausdrücklich freigegeben ist, kommt ins Repo. Alles andere in diesem Ordner sind Nutzerdaten
+# (Favoriten, Verlauf, eigene Ordner, Downloads), Arbeitsnotizen oder Bauergebnisse und bleibt auf dem Rechner.
+/*
+!/.gitignore
+!/.gitattributes
+!/.github/
+!/LICENSE
+!/README.md
+!/DRITTANBIETER.md
+!/ANLEITUNG.md
+!/openlibary.py
+!/netz.py
+!/ordner.py
+!/leicht.py
+!/leichtmessen.py
+!/plattform.py
+!/audioform.py
+!/sammlungen.py
+!/verlauf.py
+!/korrekturen.py
+!/klangnaehe.py
+!/klang_dienst.py
+!/klang_vektoren.py
+!/seite.html
+!/stile/
+!/einrichten.sh
+!/weitergeben.sh
+!/app/
+!/tests/
+
+# im App-Ordner: Bauergebnisse und Archiv
+/app/leichtmessen
+/app/alt/
+/app/fenster/node_modules/
+/app/fenster/dist/
+/app/fenster/res/
+/app/fenster/bau.log
+
+__pycache__/
+*.pyc
+.DS_Store

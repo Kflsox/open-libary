@@ -1,0 +1,147 @@
+# Prüfen auf echten Rechnern: Windows, Ubuntu, Mac mit Apple-Chip und Intel.
+# Läuft nur auf Knopfdruck (Actions, „Prüfen“, Run workflow) und bei Versions-Tags, damit ein privates Repo nicht
+# sein Freikontingent verbraucht (macOS-Minuten zählen zehnfach). „pakete“ baut und startet zusätzlich die fertigen Apps.
+name: Prüfen
+
+on:
+  workflow_dispatch:
+    inputs:
+      pakete:
+        description: "Auch die fertigen Apps bauen und starten (dauert länger)"
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  NUMPY: "2.5.4"
+  SOUNDFILE: "0.14.0"
+
+jobs:
+  quelltext:
+    name: Quelltext auf ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "numpy==${{ env.NUMPY }}" "soundfile==${{ env.SOUNDFILE }}"
+      - run: python tests/rauchtest.py
+
+  fenster-pakete:
+    name: Windows- und Linux-App bauen, Linux-App starten
+    if: inputs.pakete || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: echo "OPENLIBARY_BAU=$RUNNER_TEMP/bau" >> "$GITHUB_ENV"
+      - run: bash app/pythons_holen.sh windows linux
+      - run: npm ci
+        working-directory: app/fenster
+      - run: |
+          bash app/fenster_paket.sh windows "$RUNNER_TEMP/paket"
+          bash app/fenster_paket.sh linux "$RUNNER_TEMP/paket"
+          ls -la "$RUNNER_TEMP/paket"
+      - name: Linux-App installieren (.deb) und prüfen
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q xvfb
+          sudo apt-get install -y -q "$RUNNER_TEMP"/paket/*Linux.deb
+          PY="/opt/Open Libary/resources/python/bin/python3"
+          "$PY" tests/rauchtest.py --python "$PY" --code "/opt/Open Libary/resources/openlibary"
+          xvfb-run -a open-libary > "$RUNNER_TEMP/app.log" 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:8765/api/stand | grep -q '"paket": true' && { echo "App startet ihren Server"; ok=1; break; }
+            sleep 1
+          done
+          pkill -f "/opt/Open Libary" || true
+          [ "${ok:-}" = 1 ] || { cat "$RUNNER_TEMP/app.log"; tail -50 ~/.local/share/open-libary/openlibary.log || true; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: ${{ runner.temp }}/paket/*Windows.zip
+          retention-days: 1
+
+  windows-app:
+    name: Windows-App starten
+    needs: fenster-pakete
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-app
+          path: ${{ runner.temp }}/paket
+      - name: Paket-Python und App prüfen
+        shell: pwsh
+        run: |
+          $ziel = "$env:RUNNER_TEMP\app"
+          Expand-Archive -Path (Get-ChildItem "$env:RUNNER_TEMP\paket\*Windows.zip").FullName -DestinationPath $ziel
+          $py = "$ziel\resources\python\python.exe"
+          & $py tests\rauchtest.py --python $py --code "$ziel\resources\openlibary"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $app = Start-Process -FilePath "$ziel\Open Libary.exe" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            try {
+              $s = Invoke-RestMethod http://127.0.0.1:8765/api/stand -TimeoutSec 2
+              if ($s.paket -and $s.system -eq "windows") { $ok = $true; break }
+            } catch {}
+            Start-Sleep 1
+          }
+          Write-Host "App startet ihren Server: $ok"
+          Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+          Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) { Get-Content "$env:APPDATA\Open Libary\openlibary.log" -Tail 50 -ErrorAction SilentlyContinue; exit 1 }
+
+  mac-paket:
+    name: Mac-App bauen und starten (Apple-Chip)
+    if: inputs.pakete || startsWith(github.ref, 'refs/tags/')
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - run: echo "OPENLIBARY_BAU=$RUNNER_TEMP/bau" >> "$GITHUB_ENV"
+      - run: bash app/pythons_holen.sh mac
+      - run: bash app/app_paket.sh "$RUNNER_TEMP/paket"
+      - name: Paket-Python und App prüfen
+        run: bash tests/mac_app_pruefen.sh "$RUNNER_TEMP"/paket/*Mac.zip arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-app
+          path: ${{ runner.temp }}/paket/*Mac.zip
+          retention-days: 1
+
+  mac-intel:
+    name: Mac-App starten (Intel)
+    needs: mac-paket
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-app
+          path: ${{ runner.temp }}/paket
+      - run: bash tests/mac_app_pruefen.sh "$RUNNER_TEMP"/paket/*Mac.zip x86_64

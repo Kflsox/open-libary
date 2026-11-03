@@ -1,0 +1,66 @@
+/* Tracker: wie ein alter Musik-Tracker. Flaschengrün fast schwarz, alles in Monospace, kein Farbakzent:
+   Auswahl ist eine helle, umgekehrte Zeile, Zahlen stehen in festen Spalten. */
+:root{
+  --grund:#0d1714; --flaeche:#13211c; --zeile:#d9e6d3; --linie:#1d2e28; --linie2:#2c433a;
+  --text:#c9d8c4; --leise:#7f9a8c; --sehrleise:#55705f;
+  --signal:#d9e6d3; --auf-signal:#0d1714; --ok:#9fd39a; --warn:#e3c97a; --nein:#e98a7a;
+  --leiste:#0a1210; --leiste-linie:#1d2e28;
+  --fuss:#0a1210; --fuss-linie:#1d2e28;
+  --welle-an:#d9e6d3; --welle-aus:#3b5a4c; --welle-linie:#1d2e28;
+  --schrift:ui-monospace, "SF Mono", Menlo, Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace; --schrift-name:var(--schrift); --schrift-marke:var(--schrift);
+  --groesse:12px; --rund:0; --zeile-hoch:4px; --seite-breit:250px;
+  color-scheme:dark;
+}
+.marke{letter-spacing:.2em}
+.marke::before{content:"[ "; color:var(--sehrleise)} .marke::after{content:" ]"; color:var(--sehrleise)}
+#suche{background:#0a1210;border-color:var(--linie2)}
+.reiter button[aria-selected=true]{background:var(--zeile);color:var(--grund);border-bottom-color:transparent}
+aside h3{color:var(--leise);letter-spacing:.15em;font-weight:400}
+aside h3::before{content:"// "}
+.chip{border:none;padding:1px 4px}
+.chip:hover{background:var(--flaeche)}
+/* linke Spalte (24.10.2026): Köpfe als Kommentar wie bisher, Auswahl als umgekehrte Zeile */
+#filter{--sp-blass:#58735f; --sp-hover:var(--flaeche); --sp-ort-an:var(--flaeche); --sp-marke:var(--flaeche); --sp-spur:var(--flaeche);
+  --sp-daumen:var(--zeile); --sp-daumen-text:var(--grund); --sp-linie:var(--linie2)}
+#filter .kopf{font-weight:400;letter-spacing:.12em}
+#filter .kopf .wort::before{content:"// "}
+#filter .kopf .info,#filter .kopf .wert{letter-spacing:0}
+#filter .chip{font-size:12px;padding:1px 5px}
+thead th{font-weight:400;letter-spacing:.12em;color:var(--sehrleise)}
+tbody tr{border-bottom:none}
+tbody tr:nth-child(4n+1){background:rgba(255,255,255,.025)}
+tbody tr.aktiv{background:var(--zeile);color:#0d1714;box-shadow:none}
+tbody tr.aktiv .p,tbody tr.aktiv .tags span,tbody tr.aktiv .quelle{color:#3d5a4b}
+tbody tr.aktiv .liz{color:#0d1714}
+tbody tr.aktiv .spiel{background:#0d1714;color:#d9e6d3;border-color:#0d1714}
+.spiel{border-radius:0}
+#playKnopf{border-radius:0}
+.liz{border:none;padding:0}
+.liz::before{content:"["} .liz::after{content:"]"}
+
+/* Mit Liquid Glass (Klasse glas, Material aus glasschicht.css): Kopf und Player als dunkles Flaschenglas, kaum Glanz,
+   eine grünlich-blasse Lichtkante; Rundungen klein, damit es ein Tracker bleibt. */
+html.glas{
+  --glas:rgba(10,20,16,.78); --glas-deckend:#0a1210; --glas-dicht:rgba(12,22,18,.95); --glas-probe:#0a1210;
+  --glas-schatten:0 10px 34px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.4);
+  --glas-innen:inset 0 .5px 0 rgba(201,216,196,.20),inset 0 0 0 .5px rgba(201,216,196,.08);
+  --menue-schatten:0 12px 40px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.3);
+  /* Lichtkante in Hellgrün kräftiger und ein Schimmer unter dem Player: dunkles Glas auf dunklem Grund war sonst kaum als
+     Glas zu lesen (Kritik 24.10. abends) */
+  --glanz:.06; --kante1:rgba(200,245,205,.66); --kante2:rgba(200,245,205,.08); --kante3:rgba(200,245,205,.30);
+  --glas-schimmer:radial-gradient(46% 100% at 50% 100%,rgba(150,225,165,.17),transparent 78%);
+  --glas-rund:12px; --glas-rund-fuss:14px; --glas-knopf-rund:6px;
+  --kopf-fuellung:rgba(201,216,196,.08); --kopf-fuellung2:rgba(201,216,196,.14);
+  --fuss-leise:#a8c0b2; --fuss-linie:rgba(201,216,196,.14); --fuss-fuellung:rgba(201,216,196,.09);
+  --segment-spur:rgba(201,216,196,.08); --segment-daumen:#d9e6d3; --segment-text:#0d1714; --segment-schatten:none;
+  --welle-aus:rgba(201,216,196,.32);
+  --play-schatten:0 2px 8px rgba(0,0,0,.4);
+}
+/* Player mit Glas: Monospace ist breiter, die Kapsel kostet Rand; damit die Lautstärke wie bei den anderen Stilen in der
+   Zeile der Wiedergabeknöpfe bleibt (bei 1280 px rutschte sie in eine dritte Zeile), enger gesetzt */
+html.glas footer{padding:10px 12px;gap:6px 12px;grid-template-columns:44px minmax(180px,300px) minmax(0,1fr) auto}
+html.glas .fusleiste{gap:6px 10px}
+html.glas footer label.schalter,html.glas footer .fusunter{padding:2px 8px 2px 7px}
+html.glas footer .fusunter{padding:2px 8px}
+html.glas .fusleiste .lautstaerke input{width:76px}
+html.glas .fusleiste .lautstaerke span{min-width:3em}

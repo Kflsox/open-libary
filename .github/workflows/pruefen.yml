@@ -1,6 +1,7 @@
 # Check on real machines: Windows, Ubuntu, Mac with Apple silicon and Intel.
-# Runs only on demand (Actions, "Check", Run workflow) and on version tags, so a private repo does not use up
-# its free quota (macOS minutes count tenfold). "pakete" also builds and starts the packaged apps.
+# Runs on demand (Actions, "Check", Run workflow) and on version tags. "pakete" also builds and starts the packaged
+# apps. A version tag (git tag v1.2.0 && git push origin v1.2.0) publishes them as a release, once each app has
+# started on its own system.
 name: Check
 
 on:
@@ -78,6 +79,13 @@ jobs:
           name: windows-app
           path: ${{ runner.temp }}/paket/*Windows.zip
           retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-app
+          path: |
+            ${{ runner.temp }}/paket/*Linux.deb
+            ${{ runner.temp }}/paket/*Linux.tar.gz
+          retention-days: 1
 
   windows-app:
     name: Start the Windows app
@@ -146,3 +154,35 @@ jobs:
           name: mac-app
           path: ${{ runner.temp }}/paket
       - run: bash tests/mac_app_pruefen.sh "$RUNNER_TEMP"/paket/*Mac.zip x86_64
+
+  release:
+    name: Publish the release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows-app, mac-intel]       # the Linux app started in fenster-pakete, which windows-app needs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: pakete
+          merge-multiple: true
+      - name: Name the packages by version and publish them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          for f in pakete/*; do                  # "Open Libary 2026-11-03 Windows.zip" -> "Open-Libary-1.2.0-Windows.zip"
+            n="$(basename "$f")"; mv "$f" "pakete/Open-Libary-$v-${n##* }"
+          done
+          ls -la pakete
+          gh release create "$GITHUB_REF_NAME" pakete/* --repo "$GITHUB_REPOSITORY" --title "Open Libary $v" \
+            --notes "Download the package for your computer below; nothing else has to be installed. Step by step, including the first start of an unsigned app: [GUIDE.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/GUIDE.md).
+
+          | Computer | Package |
+          |---|---|
+          | Windows 10 or 11, 64-bit | \`Open-Libary-$v-Windows.zip\` |
+          | Mac, Apple chip (macOS 11+) or Intel (macOS 10.15+) | \`Open-Libary-$v-Mac.zip\` |
+          | Linux: Ubuntu, Mint, Debian | \`Open-Libary-$v-Linux.deb\` |
+          | Linux: others | \`Open-Libary-$v-Linux.tar.gz\` |"

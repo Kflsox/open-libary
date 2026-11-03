@@ -27,9 +27,9 @@ The name is "Libary" on purpose: "Open Library" is already the Internet Archive'
 
 ## Setup
 
-The finished apps (Mac from macOS 10.15, Apple chip and Intel; Windows 10 and 11; Linux as .deb and tar.gz) bring
-everything they need, nothing has to be installed. Step by step, including what to do the first time you open an
-unsigned app: [GUIDE.md](GUIDE.md).
+**Download: [latest release](https://github.com/Kflsox/open-libary/releases/latest).** The finished apps (Mac from
+macOS 10.15, Apple chip and Intel; Windows 10 and 11; Linux as .deb and tar.gz) bring everything they need, nothing has
+to be installed. Step by step, including what to do the first time you open an unsigned app: [GUIDE.md](GUIDE.md).
 
 From source (Python 3.9 or newer; the analysis also needs `numpy` and `soundfile`):
 

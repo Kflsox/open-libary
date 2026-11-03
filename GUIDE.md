@@ -6,14 +6,15 @@ web (Freesound, ccMixter, Internet Archive) and adds them to your library with a
 
 ## Setup: the finished app (one minute, no terminal)
 
-There are packages for three systems. Python and everything else it needs are inside, nothing has to be installed.
+There are packages for three systems, on the [download page](https://github.com/Kflsox/open-libary/releases/latest).
+Python and everything else it needs are inside, nothing has to be installed.
 
 | Computer | Package |
 |---|---|
-| Mac with Apple chip (macOS 11 or later) or Intel (macOS 10.15 or later) | `Open Libary … Mac.zip` |
-| Windows 10 or 11, 64-bit | `Open Libary … Windows.zip` |
-| Linux, 64-bit: Ubuntu, Mint, Debian | `Open Libary … Linux.deb` |
-| Linux, 64-bit: others | `Open Libary … Linux.tar.gz` |
+| Mac with Apple chip (macOS 11 or later) or Intel (macOS 10.15 or later) | `Open-Libary-…-Mac.zip` |
+| Windows 10 or 11, 64-bit | `Open-Libary-…-Windows.zip` |
+| Linux, 64-bit: Ubuntu, Mint, Debian | `Open-Libary-…-Linux.deb` |
+| Linux, 64-bit: others | `Open-Libary-…-Linux.tar.gz` |
 
 **Mac**
 
@@ -34,10 +35,10 @@ macOS then asks for access to folders: **Allow**.
 
 **Linux**
 
-🟢 Ubuntu, Mint, Debian: double-click the `.deb` and install it (or `sudo apt install ./"Open Libary … Linux.deb"`).
+🟢 Ubuntu, Mint, Debian: double-click the `.deb` and install it (or `sudo apt install ./Open-Libary-*-Linux.deb`).
 Open Libary then appears in the app menu under Sound & Video (Multimedia on some systems).
 
-🟢 Other systems: extract it (`tar xzf "Open Libary … Linux.tar.gz"`) and start `open-libary` in the extracted folder.
+🟢 Other systems: extract it (`tar xzf Open-Libary-*-Linux.tar.gz`) and start `open-libary` in the extracted folder.
 If it stops with a message about the "sandbox": `./open-libary --no-sandbox`.
 
 **On all systems**

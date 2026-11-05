@@ -163,6 +163,11 @@ text. Placeholders such as `{n}` stay as they are. A text without an entry shows
 To add a language: copy `lang/de.json` to `lang/<code>.json`, translate the values (not the keys), and add the code
 with the language's own name to `LANGUAGES` in `i18n.py`. `python tests/check_translations.py` lists every text that is still missing.
 
+## How it was made
+
+Open Libary is vibe-coded: Kflsox decides what it does and tests it, the code is written with an AI assistant
+(Claude Code).
+
 ## License
 
 GNU Affero General Public License, version 3 or later ([LICENSE](LICENSE)). Third-party software that the apps

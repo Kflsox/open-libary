@@ -8,7 +8,7 @@ Measured on 03.11.2026 against the manufacturers' values in file names (the auth
   learning, 920 loops, and the synthesized demo library): 97.6 % exact, 13 of 13 demo loops. Checked, measuring only,
   on 1,401 loops of the author's library, one per pack (everything else: Splice, bought and factory packs): exact
   57 % before, 78 % after; shown (confidence from 1.5, now the strongest candidate) 575 right and 439 wrong before,
-  847 right and 201 wrong after. What is left is mostly the octave: loops labeled 150 to 190 BPM read half, 60 to
+  847 right and 201 wrong after. What is left is mostly the octave: loops labeled 156 to 190 BPM read half, 60 to
   77 BPM double; the filters still find them with the switch "half/double".
   Root note of 808 and bass, 151 one-shots: 90 with the right pitch class, many others 1 to 2 semitones off.
   Key of loops: 101 of 297 exact, 119 counting the relative key; too unreliable, not used.

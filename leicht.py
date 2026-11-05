@@ -3,6 +3,13 @@ einrichten.sh). On computers without gehoer, tempo and key used to come only fro
 
 Measured on 03.11.2026 against the manufacturers' values in file names (the author's library):
   Tempo, 300 loops: from confidence 1.5, 227 results: 131 exact, 88 half or double, 8 wrong.
+  Tempo again on 05.11.2026, after the octave rule (the bar candidate nearest to 110 BPM instead of weighting by the
+  autocorrelation). Chosen only on material that may be learned from (free packs without a clause against machine
+  learning, 920 loops, and the synthesized demo library): 97.6 % exact, 13 of 13 demo loops. Checked, measuring only,
+  on 1,401 loops of the author's library, one per pack (everything else: Splice, bought and factory packs): exact
+  57 % before, 78 % after; shown (confidence from 1.5, now the strongest candidate) 575 right and 439 wrong before,
+  847 right and 201 wrong after. What is left is mostly the octave: loops labeled 150 to 190 BPM read half, 60 to
+  77 BPM double; the filters still find them with the switch "half/double".
   Root note of 808 and bass, 151 one-shots: 90 with the right pitch class, many others 1 to 2 semitones off.
   Key of loops: 101 of 297 exact, 119 counting the relative key; too unreliable, not used.
 So the index takes only tempo (loops without tempo, confidence from 1.5) and root note (808, bass and tonal one-shots
@@ -27,6 +34,7 @@ import plattform
 BATCH = 200
 TEMPO_AB = 1.5
 TONHALTIG_AB = 0.5
+VERSION = 3          # of the analysis: 2 = with sound fingerprint, 3 = octave rule for the tempo of loops
 
 
 class Leicht:
@@ -104,10 +112,12 @@ class Leicht:
     def _durchgang(self):
         con = self._verbinden()
         try:
-            # Rows from before the sound fingerprint (v empty) count as pending; every other row is known, even without a
-            # fingerprint (too short) or with an error (otherwise 2,127 files under 0.1 s were analyzed again every 10 min)
+            # Rows from before the sound fingerprint (v empty) count as pending, and rows with a tempo from before the
+            # octave rule (v 2); every other row is known, even without a fingerprint (too short) or with an error
+            # (otherwise 2,127 files under 0.1 s were analyzed again every 10 min)
             bekannt = {r[0]: (r[1], r[2]) for r in con.execute(
-                "SELECT pfad, groesse, mtime FROM werte WHERE v >= 2 OR fehler IS NOT NULL")}
+                "SELECT pfad, groesse, mtime FROM werte WHERE v >= ? OR (v >= 2 AND bpm IS NULL) OR fehler IS NOT NULL",
+                (VERSION,))}
         finally:
             con.close()
         offen = []
@@ -161,7 +171,7 @@ class Leicht:
                 try:
                     st = os.stat(fehlt[0])
                     zeilen.append((fehlt[0], st.st_size, st.st_mtime) + (None,) * 9 +
-                                  ("leichtmessen hangs or crashes on this file", jetzt, None, 2))
+                                  ("leichtmessen hangs or crashes on this file", jetzt, None, VERSION))
                 except OSError:
                     pass
                 fehlt = fehlt[1:]
@@ -184,7 +194,7 @@ class Leicht:
             zeilen.append((d["pfad"], st.st_size, st.st_mtime, d.get("bpm"), d.get("bpm_sicher"), d.get("ton"),
                            int(bool(d.get("moll"))) if d.get("ton") is not None else None, d.get("ton_sicher"),
                            d.get("grundton_midi"), d.get("grundton_cent"), d.get("tonhaltig"), d.get("dauer"),
-                           d.get("fehler"), jetzt, json.dumps(d["klang"]) if d.get("klang") else None, 2))
+                           d.get("fehler"), jetzt, json.dumps(d["klang"]) if d.get("klang") else None, VERSION))
         return zeilen, gesehen
 
     def _schreiben(self, zeilen):

@@ -8,8 +8,9 @@
 // or {"pfad", "fehler"}. At most the first 30 s are read.
 //
 // Method (deliberately simple, gehoer measures more precisely):
-//   Tempo: onset envelope (spectral flux, 1024/256 at ~22 kHz), autocorrelation 60 to 200 BPM with a
-//          preference around 120 BPM, then snapped to the loop length (a loop is a whole number of bars long).
+//   Tempo: for a loop the tempos that make it a whole number of bars, the one nearest to 110 BPM; otherwise onset
+//          envelope (spectral flux, 1024/256 at ~22 kHz), autocorrelation 60 to 200 BPM with a preference around
+//          120 BPM, then snapped to the loop length.
 //   Key: chroma from 8192-point spectra (pitches C2 to C7, each the sum of its first four harmonics),
 //        correlation with the Krumhansl-Kessler profiles.
 //   Root note: YIN on 200 ms from 50 ms after the attack (808s glide at the start), 25 to 1000 Hz.
@@ -145,8 +146,12 @@ func tempo(_ x: [Float], sr: Double, dauer: Double) -> (Double, Double)? {
         guard i >= 1, i + 1 < ak.count else { return 0 }
         return Double(ak[i]) * (1 - f) + Double(ak[i + 1]) * f
     }
-    // A loop is a whole number of bars (1, 2, 4, 8, 16, 32 bars of 4/4): then only these tempos qualify, and the
-    // autocorrelation chooses between them (check: estimated freely, 26 of 300 landed at 4/3 of the right tempo)
+    // A loop is a whole number of bars (1, 2, 4, 8, 16, 32 bars of 4/4): then only these tempos qualify (estimated
+    // freely, 26 of 300 landed at 4/3 of the right tempo). They lie an octave apart, and which octave a loop is
+    // labeled with is a convention the audio does not settle: weighting them by the autocorrelation put a third of
+    // the loops at half their tempo. Loops are mostly labeled between 78 and 155 BPM, so the candidate nearest to
+    // 110 BPM wins (check 05.11.2026 in leicht.py). The confidence is the strongest periodicity among the
+    // candidates: it says whether the loop follows the bar grid at all, not which octave.
     if dauer >= 1.5 {
         var kand: [Double] = []
         for takte in [1.0, 2, 4, 8, 16, 32] {
@@ -154,15 +159,10 @@ func tempo(_ x: [Float], sr: Double, dauer: Double) -> (Double, Double)? {
             if k >= 60 && k <= 200 { kand.append(k) }
         }
         if !kand.isEmpty {
-            var bestK = kand[0], bestW = -1.0
-            for k in kand {
-                let vorliebe = exp(-0.5 * pow(log2(k / 110.0) / 0.8, 2))
-                let w = (akBei(k) + 0.5 * akBei(k * 2)) * vorliebe
-                if w > bestW { bestW = w; bestK = k }
-            }
+            let bestK = kand.min(by: { abs(log2($0 / 110.0)) < abs(log2($1 / 110.0)) })!
             var bpm = bestK
             if abs(bpm - bpm.rounded()) < 0.15 { bpm = bpm.rounded() }
-            return (bpm, min(9.9, akBei(bestK) / akMittel))
+            return (bpm, min(9.9, kand.map(akBei).max()! / akMittel))
         }
     }
     var bester = 0.0, besterLag = minLag

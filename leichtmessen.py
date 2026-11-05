@@ -89,10 +89,10 @@ def tempo(x, sr, dauer):
 
     if dauer >= 1.5:
         kand = [240.0 * t / dauer for t in (1, 2, 4, 8, 16, 32) if 60 <= 240.0 * t / dauer <= 200]
-        if kand:
-            best = max(kand, key=lambda k: (ak_bei(k) + 0.5 * ak_bei(k * 2)) * math.exp(-0.5 * (math.log2(k / 110) / 0.8) ** 2))
+        if kand:        # whole bars; the octave nearest to 110 BPM (the reasoning is in the Swift version)
+            best = min(kand, key=lambda k: abs(math.log2(k / 110)))
             bpm = round(best) if abs(best - round(best)) < 0.15 else best
-            return bpm, min(9.9, ak_bei(best) / ak_mittel)
+            return bpm, min(9.9, max(ak_bei(k) for k in kand) / ak_mittel)
     best_lag, best_w = min_lag, -1.0
     for lag in range(min_lag, max_lag + 1):
         bpm = 60.0 / (lag * hop_s)

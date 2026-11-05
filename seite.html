@@ -257,7 +257,7 @@
         <div id="archivmehr" class="mehr"></div>
       </section>
     </div>
-    <h3 class="netztitel" style="margin-top:36px">Already checked and downloaded <span class="quelle">License cross-checked at the original source on Oct 17, 2026</span></h3>
+    <h3 class="netztitel" id="geprueftTitel" style="margin-top:36px" hidden>Already checked and downloaded <span class="quelle">License cross-checked at the original source on Oct 17, 2026</span></h3>
     <div id="geprueft"></div>
   </main>
 
@@ -4330,7 +4330,7 @@ function zufallZeigen(z){
   const werte = [z.bpm != null ? bpmText(z) + " BPM" : tx("Tempo unknown"), tonText(z) || tx("Key unknown"), z.dauer != null ? dauerText(z.dauer) : ""].filter(Boolean);
   const klang = [...z.stimmung, ...z.instrumente.slice(0, 3)].slice(0, 6);
   $("#zKarte").innerHTML = `
-    <div class="zart">${esc(z.art || "Loop")}</div>
+    <div class="zart">${esc(ART[z.art] || z.art || "Loop")}</div>
     <div class="zname" title="${esc(z.pfad)}">${esc(z.name)}</div>
     <div class="zpack">${packLink(z.pack)} · <span class="liz ${esc(z.lizenz)}" title="${esc(z.lizenz_grund || "")}">${esc(lizenzWort(z.lizenz))}</span></div>
     <div class="zwerte zahl">${werte.map(w => `<span>${w}</span>`).join("")}</div>
@@ -4789,7 +4789,7 @@ function statusZeigen(){
     if (z.status === "fehler") return `<span class="qs warntext"><b>${QUELLEN[n]}</b> ${esc(z.fehler)} <button data-nochmal="${n}">${tx("Try again")}</button></span>`;
     if (z.status === "abgebrochen") return `<span class="qs"><b>${QUELLEN[n]}</b> ${tx("canceled")} <button data-nochmal="${n}">${tx("Try again")}</button></span>`;
     if (z.status === "fertig") return `<span class="qs"><b>${QUELLEN[n]}</b> ${z.treffer.length === 1 ? tx("1 result") : tx("{n} results", {n: z.treffer.length})}${
-      n === "ccmixter" && !z.treffer.length && NETZ.lizenz === "cc0" ? ` <span class="quelle">${tx("(almost everything there is CC BY: choose “Also CC BY” above)")}</span>` : ""}</span>`;
+      n === "ccmixter" && !z.treffer.length && NETZ.lizenz === "cc0" ? ` <span class="quelle">${tx("(almost everything there is CC BY: choose “CC BY too” above)")}</span>` : ""}</span>`;
     return "";
   }).join("");
   const a = NETZ.archiv;
@@ -5074,7 +5074,7 @@ function archivZeichnen(){
   const a = NETZ.archiv, l = $("#netzliste");
   if (!a.treffer.length){
     l.innerHTML = a.status === "laeuft" ? Array.from({length:4}, () => `<div class="posten skelettzeile"><div></div></div>`).join("")
-      : a.status === "fertig" ? `<div class="hinweis" style="padding:16px 0">${tx("<strong>No collection found.</strong>English terms find more (drum, break, synth, vocal, foley).")}${NETZ.lizenz === "cc0" ? " " + tx("“Also CC BY” above often finds more.") : ""} ${tx("Without the tick at “Sample collections only” you get more, but also more unrelated material.")}</div>` : "";
+      : a.status === "fertig" ? `<div class="hinweis" style="padding:16px 0">${tx("<strong>No collection found.</strong>English terms find more (drum, break, synth, vocal, foley).")}${NETZ.lizenz === "cc0" ? " " + tx("“CC BY too” above often finds more.") : ""} ${tx("Without the tick at “Sample collections only” you get more, but also more unrelated material.")}</div>` : "";
     $("#archivmehr").innerHTML = ""; return;
   }
   const sort = a.sort || "relevanz";
@@ -5286,10 +5286,11 @@ $("#ladeliste").addEventListener("click", async e => {
 
 async function geprueftZeigen(){
   const el = $("#geprueft");
-  el.innerHTML = `<div class="quelle">${tx("loading …")}</div>`;
+  el.innerHTML = " ";      // stays empty for libraries without a review list
   try {
     const d = await (await fetch("/api/netz/geprueft")).json();
-    if (!d.packs?.length){ el.innerHTML = `<div class="quelle">${tx("No review list found (Bibliothek/funde-teile/netz-urteile.tsv).")}</div>`; return; }
+    if (!d.packs?.length){ el.innerHTML = " "; return; }      // only the own collection has a review list: nothing to show
+    $("#geprueftTitel").hidden = false;
     el.innerHTML = d.packs.map(p => `
       <div class="posten">
         <div class="kopf"><b>${esc(p.pack)}</b>

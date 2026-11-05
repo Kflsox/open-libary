@@ -295,7 +295,7 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
 .posten .kopf .passt{margin-right:2px}
 .inlib{border-color:var(--signal);color:var(--signal);font-weight:600}
 .inlib:disabled{border-color:var(--linie2);color:var(--leise);font-weight:400}
-.ezeile{display:grid;grid-template-columns:18px 28px minmax(0,1fr) 54px 72px 84px 40px 44px 56px 92px 118px;gap:6px;align-items:center;
+.ezeile{display:grid;grid-template-columns:18px 28px minmax(0,1fr) 54px 72px 84px 40px 44px 56px 92px var(--ez-aktion,130px);gap:6px;align-items:center;
   padding:4px 0;border-bottom:1px solid var(--linie);font-size:12px}
 .ezeile .dn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ezeile > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -312,7 +312,7 @@ footer .warntext,.unterlage .warntext{color:var(--fuss-warn)!important}
    in the name's tooltip), then relevance, type and BPM, and when very narrow the length too */
 .netzspalten > section:first-child{container-type:inline-size}
 @container (max-width:880px){
-  .ezeile{grid-template-columns:18px 28px minmax(0,1fr) 54px 84px 40px 56px 92px 118px}
+  .ezeile{grid-template-columns:18px 28px minmax(0,1fr) 54px 84px 40px 56px 92px var(--ez-aktion,130px)}
   .ezeile > :nth-child(5),.ezeile > :nth-child(8){display:none}
 }
 @container (max-width:600px){
@@ -463,7 +463,7 @@ button.klein:hover{border-color:var(--leiste-linie);color:var(--leiste-text)}
 .dltab .dlzeit{width:52px;text-align:right}
 .dltab .sp-akt{width:150px}
 /* Type column in a wide window wide enough for "full song" to fit (at 1728 px it read "full so..." while the name column had room) */
-@media (min-width:1400px){ #bib col.sp-art{width:112px!important} }
+@media (min-width:1400px){ #bib col.sp-art{width:120px!important} }
 @media (max-width:700px){ .dltab .sp-art,.dltab .dlzeit{display:none} }
 
 /* Keyboard shortcuts (key ?): a surface over the list between header and player bar; the page sets top and bottom when opening it */
@@ -618,7 +618,7 @@ tbody tr.aktiv.markiert{outline:2px solid var(--signal);outline:2px solid color-
 #jetzt .hz{color:var(--fuss-leise)}
 #jetzt .kfeld{cursor:pointer;text-decoration:underline dotted transparent;text-underline-offset:2px}
 #jetzt .kfeld:hover{text-decoration-color:currentColor}
-thead th .sortwahl{margin-left:6px;padding:0 2px;font:inherit;font-size:11px;border:none;background:none;color:var(--sehrleise);cursor:pointer;text-transform:none;letter-spacing:0;max-width:8.6em}
+thead th .sortwahl{margin-left:6px;padding:0 2px;font:inherit;font-size:11px;border:none;background:none;color:var(--sehrleise);cursor:pointer;text-transform:none;letter-spacing:0;max-width:11em}
 thead th .sortwahl.an{color:var(--text)}
 #jetzt .auswahlzeile{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #jetzt .ziehgriff{text-decoration:underline dotted;text-underline-offset:2px;cursor:grab}
@@ -747,7 +747,7 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .spaltensegment button{border:none;margin:0;padding:3px 0;border-radius:var(--sp-rund-seg)!important;font-size:12px;line-height:1.35;
   color:var(--sp-text);background:none;box-shadow:none}
 #filter .spaltensegment button[aria-pressed=true]{background:var(--sp-daumen);color:var(--sp-daumen-text);font-weight:600;box-shadow:var(--sp-daumen-schatten)}
-#filter .schalterreihe{display:flex;gap:14px;margin-top:8px}
+#filter .schalterreihe{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px}
 #filter .punkt{display:inline-flex;align-items:center;gap:6px;border:none;background:none;padding:0;font-size:12px;line-height:1.35;
   color:var(--sp-leise);cursor:pointer;white-space:nowrap;margin:0}
 #filter .punkt::before{content:"";width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;flex:none;box-sizing:border-box}
@@ -819,7 +819,12 @@ thead th .sortwahl.an{color:var(--text)}
 #filter .mehrknopf[aria-expanded=true]::after{transform:rotate(180deg)}
 /* Tempo, bars, more: inputs in one row */
 #filter .reihe{gap:6px}
-#filter .tempozeile input,#filter .takterahmen input,#filter .mehrzeile input[type=number]{width:52px;padding:3px 7px;font-size:12.5px;font-variant-numeric:tabular-nums}
+#filter .tempozeile input,#filter .takterahmen input,#filter .mehrzeile input[type=number]{width:64px;padding:3px 7px;font-size:12.5px;font-variant-numeric:tabular-nums;
+  appearance:textfield;-moz-appearance:textfield}
+/* no spin buttons in the small number fields: they took a third of the width and cut "from" and "140" */
+#filter .tempozeile input::-webkit-inner-spin-button,#filter .tempozeile input::-webkit-outer-spin-button,
+#filter .takterahmen input::-webkit-inner-spin-button,#filter .takterahmen input::-webkit-outer-spin-button,
+#filter .mehrzeile input[type=number]::-webkit-inner-spin-button,#filter .mehrzeile input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 #filter .tempozeile .punkt{margin-left:auto}
 #filter .strich{color:var(--sp-leise);font-size:12px}
 #filter .takterahmen{margin-top:5px}

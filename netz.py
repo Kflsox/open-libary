@@ -20,6 +20,7 @@ Downloading
   skips only that file. Every finished file is filed right away (type, loop/one-shot, BPM, key, duration,
   sample rate, channels) and written to zusaetze.csv; plus a record (metadata at download time) under _belege/.
 """
+import codecs
 import concurrent.futures
 import csv
 import hashlib
@@ -72,6 +73,15 @@ class QuelleFehler(Exception):
         self.code = code
 
 
+def _cp1252_ersatz(e):
+    """A single byte that is not UTF-8 is read as Windows-1252: ccMixter sends some descriptions that way (byte 0x94 =
+    a closing quote), the rest of the same response is UTF-8."""
+    return e.object[e.start:e.start + 1].decode("cp1252", errors="replace"), e.start + 1
+
+
+codecs.register_error("openlibary_cp1252", _cp1252_ersatz)
+
+
 def _holen(url, timeout=25, versuche=1, name=N_("The source")):
     """Fetch JSON; on a timeout, 5xx or empty response, try once more after a short pause."""
     letzter = None
@@ -81,7 +91,7 @@ def _holen(url, timeout=25, versuche=1, name=N_("The source")):
                 roh = r.read()
             if not roh.strip():
                 raise ValueError(tx("empty response"))
-            return json.loads(roh.decode("utf-8"))
+            return json.loads(roh.decode("utf-8", errors="openlibary_cp1252"))
         except urllib.error.HTTPError as e:
             if e.code in (401, 429):
                 raise
@@ -220,6 +230,10 @@ def einordnen(name, ordner="", dauer=None):
         lo = "loop" if ist_loop or (bpm and dauer and dauer >= 1.9) else ("oneshot" if dauer is not None and dauer < 2.5 else "")
     if not art and re.search(r"drums?\b|perc", text) and (lo == "loop" or (dauer or 0) >= 2.5):
         art, lo = "break", "loop"
+    if bpm is None and lo == "loop" and not ist_loop:
+        # a loop only through its folder or length ("Drums/Loops/Garage Shuffle 132"): a free number in the name is the
+        # tempo here too, as in names with "loop" (the light analysis heard half of it, 66)
+        bpm = next((int(k) for k in _BPM_FREI.findall(os.path.splitext(name)[0]) if 60 <= int(k) <= 200), None)
     if not art and dauer is not None and dauer >= 30:
         art = "atmo"                          # long recording without a hint: treat it as a field recording
     tonart = ""

@@ -64,3 +64,5 @@ html.glas footer label.schalter,html.glas footer .fusunter{padding:2px 8px 2px 7
 html.glas footer .fusunter{padding:2px 8px}
 html.glas .fusleiste .lautstaerke input{width:76px}
 html.glas .fusleiste .lautstaerke span{min-width:3em}
+/* monospace: "Add to library" plus "Page" need 143 px */
+.ezeile{--ez-aktion:146px}

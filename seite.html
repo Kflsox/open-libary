@@ -240,7 +240,7 @@
         <h3 class="netztitel">Single sounds <span class="quelle">Freesound, Wikimedia Commons, ccMixter</span></h3>
         <p class="netzerklaer">Single sounds with a license per sound. Without a connection Freesound only gives out the MP3 preview
           (“Connect” at Freesound above), Wikimedia and ccMixter give the original. In the app a row can be dragged
-          straight into FL. Ticking a sound keeps it for later, across several searches too; it downloads into a
+          straight into the DAW. Ticking a sound keeps it for later, across several searches too; it downloads into a
           folder by topic, with a license record per sound.</p>
         <div id="einzelstatus" class="quellstatus"></div>
         <div id="einzelfilter" class="einzelfilter"></div>
@@ -276,7 +276,7 @@
 
   <footer>
     <button id="playKnopf" aria-label="Play" disabled></button>
-    <div id="jetzt"><div class="t">Nothing selected</div><div class="d">Arrow keys select and play, space stops, drag a row into the DAW</div></div>
+    <div id="jetzt"><div class="t">Nothing selected</div><div class="d">Arrow keys select and play, space pauses, drag a row into the DAW</div></div>
     <div class="wellenfeld"><canvas id="welle"></canvas><div id="jetztPegel" class="pegelzeile"></div></div>
     <!-- Glass layout: actions on the right in two groups, below them a bar with version, playback and volume;
          minor sample info behind "Details" (i). IDs as before, only regrouped -->
@@ -1917,16 +1917,16 @@ function fassungZeigen(){
   $("#vari").checked = FASSUNG.vari;
   const el = $("#fassungZeile"); if (!el) return;
   const z = FASSUNG.z, plan = FASSUNG.plan, a = z ? ausFuer(z) : null;
-  // with a region the line shows in the Original setting too ("dragged file: bar 1 to 2")
+  // with a region the line shows in the Original setting too ("on drag: bar 1 to 2")
   if (!z || aktuellZ !== z || NETZ.spielt || (!plan && !a)){ el.hidden = true; return; }
   let teile = [], warn = false;
   const zp = ziehParam(z), hinweise = plan?.hinweise || [];
   const label = [a ? ausText(z, a) : "", zp?.plan?.param ? zp.plan.label : ""].filter(Boolean).join(" · ");
-  if (!zp) teile = [tx("dragged file: {label}", {label: "Original"}), ...hinweise];
+  if (!zp) teile = [tx("on drag: {label}", {label: "Original"}), ...hinweise];
   else {
     // first what gets dragged (or why not), then the hints: in a narrow player bar the important part stays in front
     const e = FASSUNG.fertig.get(fassungSchluessel(z, zp.p));
-    if (e?.status === "fertig") teile.push(tx("dragged file: {label}", {label}));
+    if (e?.status === "fertig") teile.push(tx("on drag: {label}", {label}));
     else if (e?.status === "fehler"){ if (zp.p.vari) teile.push(label); teile.push(e.text); warn = true; }
     else teile.push(tx("rendering {label} …", {label}));
     teile.push(...hinweise);

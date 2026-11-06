@@ -123,7 +123,7 @@ WANDEL_CACHE = Path(tempfile.gettempdir()) / "openlibary-wandel"
 WANDEL_MAX_BYTES = 1024 ** 3        # the oldest conversions are dropped when the cache grows bigger
 PORT = 8765
 CODE_STAND = os.path.getmtime(__file__)     # packaged app: detects an old server after an update (--ersetzen)
-VERSION = "1.2.1"           # the same as app/fenster/package.json (the smoke test checks it)
+VERSION = "1.2.2"           # the same as app/fenster/package.json (the smoke test checks it)
 # Keys and logins (Freesound): not in the code folder, so that folder can be passed on
 KONFIG_ORDNER = Path(os.environ.get("OPENLIBARY_KONFIG", plattform.konfigordner()))
 # /favicon.ico (before: a 404 in every console): four bars of a waveform, embedded

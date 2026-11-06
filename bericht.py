@@ -30,7 +30,7 @@ import plattform
 from i18n import N_
 
 # The receiver (empfaenger/ in the repo): files each report as an issue in a private repo of the author.
-URL = os.environ.get("OPENLIBARY_BERICHT_URL", "")
+URL = os.environ.get("OPENLIBARY_BERICHT_URL", "https://open-libary-berichte.open-libary-berichte.workers.dev/bericht")
 HAENGER_S = float(os.environ.get("OPENLIBARY_HAENGER_S") or 45)     # a request longer than this is a freeze
 STAPEL_S = 60                   # whole process stood still this long: faulthandler writes the stacks
 PROTOKOLL_ZEILEN = 300

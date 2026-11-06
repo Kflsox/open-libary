@@ -10,6 +10,7 @@ the same port.
 Needs numpy and soundfile (in the Python that runs the test AND the server). Exit 1 when a check fails.
 """
 import argparse
+import http.server
 import io
 import json
 import math
@@ -20,6 +21,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -125,6 +127,35 @@ def fehlertext(basis, pfad, daten):
     return None
 
 
+class _Empfaenger(http.server.BaseHTTPRequestHandler):
+    """Stands in for the report receiver (empfaenger/): keeps what arrives."""
+    angekommen = []
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        _Empfaenger.angekommen.append(json.loads(self.rfile.read(n)))
+        b = b'{"ok": true}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def log_message(self, *a):
+        pass
+
+
+def warte_auf_server(basis, srv, tmp):
+    t0 = time.time()
+    while True:
+        try:
+            return hol(basis, "/api/stand"), time.time() - t0
+        except (urllib.error.URLError, OSError):
+            if srv.poll() is not None or time.time() - t0 > 90:
+                raise SystemExit("Server does not start:\n" + (tmp / "server.log").read_text(encoding="utf-8")[-3000:])
+            time.sleep(0.5)
+
+
 def server_befehl(python, code, port):
     # the way app/main.m and app/fenster/main.js start it
     return [python, "-B", "-E", "-s", "-X", "utf8", str(Path(code) / "openlibary.py"), "--port", str(port), "--ohne-browser"]
@@ -147,7 +178,11 @@ def main():
     umgebung = dict(os.environ, OPENLIBARY_DATEN=str(tmp / "daten"), OPENLIBARY_PAKET="1",
                     OPENLIBARY_KONFIG=str(tmp / "konfig"), OPENLIBARY_DOWNLOADS=str(tmp / "downloads"),
                     OPENLIBARY_RENDERS=str(tmp / "renders"), OPENLIBARY_NETZ_ZIEL=str(tmp / "netz"),
-                    OPENLIBARY_DRUM_ZIEL=str(tmp / "drums"), OPENLIBARY_GEHOER=str(tmp / "kein-gehoer"))
+                    OPENLIBARY_DRUM_ZIEL=str(tmp / "drums"), OPENLIBARY_GEHOER=str(tmp / "kein-gehoer"),
+                    OPENLIBARY_TEST="1", OPENLIBARY_HAENGER_S="3")
+    empfaenger = http.server.HTTPServer(("127.0.0.1", 0), _Empfaenger)
+    threading.Thread(target=empfaenger.serve_forever, daemon=True).start()
+    umgebung["OPENLIBARY_BERICHT_URL"] = f"http://127.0.0.1:{empfaenger.server_address[1]}/bericht"
     for d in ("daten", "konfig", "downloads"):
         (tmp / d).mkdir()
     protokoll = open(tmp / "server.log", "w", encoding="utf-8")
@@ -155,16 +190,8 @@ def main():
     srv = subprocess.Popen(server_befehl(a.python, a.code, a.port), env=umgebung, stdout=protokoll,
                            stderr=subprocess.STDOUT, **zusatz)
     try:
-        t0 = time.time()
-        while True:
-            try:
-                st = hol(basis, "/api/stand")
-                break
-            except (urllib.error.URLError, OSError):
-                if srv.poll() is not None or time.time() - t0 > 90:
-                    raise SystemExit("Server does not start:\n" + (tmp / "server.log").read_text(encoding="utf-8")[-3000:])
-                time.sleep(0.5)
-        pruefe("server starts", True, f"{time.time() - t0:.1f} s, system {st.get('system')}, package {st.get('paket')}")
+        st, dauer = warte_auf_server(basis, srv, tmp)
+        pruefe("server starts", True, f"{dauer:.1f} s, system {st.get('system')}, package {st.get('paket')}")
 
         r = hol(basis, "/api/ordner", {"pfad": str(ordner)})
         pruefe("add folder", r.get("ok"), r.get("text"))
@@ -239,6 +266,55 @@ def main():
         pruefe("language: German server message", fehlertext(basis, "/api/stil", {"name": "x"}) == "unbekannter Stil")
         pruefe("language: saved", (tmp / "daten" / "sprache.txt").read_text(encoding="utf-8").strip() == "de")
         hol(basis, "/api/sprache", {"sprache": "en"})
+
+        # problem reports: a freeze is noticed, the snapshot keeps names out, sending delivers exactly that text
+        paket = json.loads((Path(a.code) / "app/fenster/package.json").read_text(encoding="utf-8"))["version"]
+        v0 = hol(basis, "/api/vorfaelle")
+        pruefe("reports: version as in package.json", v0.get("version") == paket, f"{v0.get('version')} / {paket}")
+        pruefe("reports: nothing to ask on a first start", v0.get("offen") == [] and v0.get("fragen") is True, v0)
+        hol(basis, "/api/test/haengen?s=9", frist=30)
+        v1 = hol(basis, "/api/vorfaelle")["offen"]
+        haenger = [v for v in v1 if v["art"] == "freeze"]
+        pruefe("reports: a request that hangs is a freeze", len(haenger) == 1, v1)
+        ids = [v["id"] for v in haenger]
+        vorschau = hol(basis, "/api/bericht/vorschau", {"ids": ids})["schnappschuss"]
+        pruefe("reports: snapshot carries the stacks", "/api/test/haengen" in vorschau and "Thread" in vorschau)
+        pruefe("reports: snapshot takes this server's own log", f"127.0.0.1:{a.port}/" in vorschau)
+        pruefe("reports: snapshot without home folder and sample names",
+               str(Path.home()) not in vorschau and ordner.name not in vorschau and "Kick 01" not in vorschau,
+               [z for z in vorschau.splitlines() if str(Path.home()) in z or "Kick 01" in z][:2])
+        sys.path.insert(0, str(Path(a.code)))
+        import bericht
+        roh = "open failed: 'C:\\\\Users\\\\Jay\\\\Music\\\\S\\\\Pack A\\\\Kick.wav', then D:\\S\\Pack B, ~/x/Pack C.zip"
+        anonym = bericht.anonym(roh, ["C:\\Users\\Jay\\Music\\S", "D:\\S"])
+        pruefe("reports: Windows paths and other files anonymized", not any(x in anonym for x in ("Pack A", "Pack B", "Pack C", "Jay"))
+               and "<audio 1>.wav" in anonym and "<file>.zip" in anonym, anonym)
+        pruefe("reports: empty description refused", fehlertext(basis, "/api/bericht/senden", {"text": " "}) is not None)
+        r = hol(basis, "/api/bericht/senden", {"art": "freeze", "text": "Test", "kontakt": "", "ids": ids,
+                                               "schnappschuss": vorschau})
+        an = _Empfaenger.angekommen[-1] if _Empfaenger.angekommen else {}
+        pruefe("reports: sending delivers the shown snapshot", r.get("ok") and an.get("snapshot") == vorschau
+               and an.get("app") == "open-libary" and an.get("art") == "freeze" and an.get("version") == paket,
+               {k: an.get(k) for k in ("app", "art", "version", "system")})
+        pruefe("reports: sent incidents are not asked about again", hol(basis, "/api/vorfaelle")["offen"] == [])
+
+        # a crash (kill) is noticed at the next start; a clean end is not
+        srv.kill()
+        srv.wait(10)
+        srv = subprocess.Popen(server_befehl(a.python, a.code, a.port), env=umgebung, stdout=protokoll,
+                               stderr=subprocess.STDOUT, **zusatz)
+        warte_auf_server(basis, srv, tmp)
+        nach_absturz = [v["art"] for v in hol(basis, "/api/vorfaelle")["offen"]]
+        pruefe("reports: a crash is noticed at the next start", nach_absturz == ["crash"], nach_absturz)
+        srv.terminate()
+        srv.wait(10)
+        if os.name == "nt":       # Windows ends the server the hard way; the app (main.js) deletes the session then
+            (tmp / "daten" / "sitzung.json").unlink(missing_ok=True)
+        srv = subprocess.Popen(server_befehl(a.python, a.code, a.port), env=umgebung, stdout=protokoll,
+                               stderr=subprocess.STDOUT, **zusatz)
+        warte_auf_server(basis, srv, tmp)
+        nach_ende = [v["art"] for v in hol(basis, "/api/vorfaelle")["offen"]]
+        pruefe("reports: a clean end is no crash", nach_ende == ["crash"], nach_ende)
     finally:
         srv.terminate()
         try:

@@ -1,0 +1,15 @@
+# Cloudflare Worker that files Open Libary bug reports as GitHub issues.
+# Secret (not in this file): GITHUB_TOKEN, set with `npx wrangler secret put GITHUB_TOKEN`.
+name = "open-libary-berichte"
+main = "worker.js"
+compatibility_date = "2026-10-15"
+workers_dev = true
+
+# Rate limit: one Durable Object per client IP (see README, "Rate limiting").
+[[durable_objects.bindings]]
+name = "ZAEHLER"
+class_name = "Zaehler"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Zaehler"]

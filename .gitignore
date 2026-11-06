@@ -24,12 +24,14 @@
 !/klangnaehe.py
 !/klang_dienst.py
 !/klang_vektoren.py
+!/bericht.py
 !/seite.html
 !/stile/
 !/einrichten.sh
 !/weitergeben.sh
 !/app/
 !/tests/
+!/empfaenger/
 
 # in the app folder: build output and archive
 /app/leichtmessen
@@ -42,3 +44,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# the report receiver (Cloudflare Worker): dependencies and local state of wrangler
+/empfaenger/node_modules/
+/empfaenger/.wrangler/

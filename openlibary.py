@@ -72,6 +72,7 @@ import korrekturen      # type, loop/one-shot, BPM, key, license by hand
 import ordner           # your own folders in the app
 import klangnaehe       # sound fingerprint for "Similar"
 import leicht           # tempo and root note without gehoer
+import bericht          # problem reports: crashes, freezes, snapshot
 import i18n             # interface language (English source, lang/<code>.json)
 from i18n import tx, N_
 
@@ -122,6 +123,7 @@ WANDEL_CACHE = Path(tempfile.gettempdir()) / "openlibary-wandel"
 WANDEL_MAX_BYTES = 1024 ** 3        # the oldest conversions are dropped when the cache grows bigger
 PORT = 8765
 CODE_STAND = os.path.getmtime(__file__)     # packaged app: detects an old server after an update (--ersetzen)
+VERSION = "1.2.1"           # the same as app/fenster/package.json (the smoke test checks it)
 # Keys and logins (Freesound): not in the code folder, so that folder can be passed on
 KONFIG_ORDNER = Path(os.environ.get("OPENLIBARY_KONFIG", plattform.konfigordner()))
 # /favicon.ico (before: a 404 in every console): four bars of a waveform, embedded
@@ -2415,6 +2417,7 @@ MESSDIENST = None
 ORDNER = None
 LEICHT = None                # light analysis (leicht.py), None before the start
 KLANG = None                 # sound fingerprint (klangnaehe.py), None without the gehoer environment
+BERICHTE = None              # problem reports (bericht.py), None before the start
 ORDNER_MESSEN_MAX = 300      # new files of a folder that gehoer analyzes on its own; more through selection and "Analyze"
 ORDNER_TAKT_S = 3600         # rescan your own folders every hour (new and deleted files)
 
@@ -2993,6 +2996,10 @@ class Handler(BaseHTTPRequestHandler):
         return nfc(pfad) in INDEX.nach_pfad
 
     def do_GET(self):
+        with BERICHTE.anfrage(self.path):        # a request that takes too long counts as a freeze
+            return self._get()
+
+    def _get(self):
         if not self._host_ok():
             return self._fehler(403, tx("foreign host"))
         u = urllib.parse.urlparse(self.path)
@@ -3063,6 +3070,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"stile": stile_liste(), "aktiv": stil_aktuell()})
             if u.path == "/api/sprache":
                 return self._json({"sprache": i18n.current(), "sprachen": i18n.LANGUAGES})
+            if u.path == "/api/vorfaelle":      # crashes and freezes the page should ask about (bericht.py)
+                return self._json({"offen": [{"id": v["id"], "art": v["art"], "zeit": v["zeit"],
+                                              "was": (v.get("details") or {}).get("was", "")} for v in BERICHTE.offen()],
+                                   "fragen": BERICHTE.fragen(), "senden": bool(bericht.URL), "version": VERSION})
+            if u.path == "/api/test/haengen" and os.environ.get("OPENLIBARY_TEST") == "1":    # smoke test only
+                time.sleep(min(120.0, float((p.get("s") or ["1"])[0])))
+                return self._json({"ok": True})
             if u.path == "/api/sammlungen":
                 return self._json(dict(sammlungen.stand(), verlauf=verlauf.zahlen(),     # counts on the left
                                        lizenz_offen=lizenz_offen_zahl()))                # counter on the left
@@ -3210,6 +3224,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._fehler(500, f"{type(e).__name__}: {e}")
 
     def do_POST(self):
+        with BERICHTE.anfrage(self.path):
+            return self._post()
+
+    def _post(self):
         if not (self._host_ok() and self._origin_ok()) or \
                 not (self.headers.get("Content-Type") or "").startswith("application/json"):
             return self._fehler(403, tx("only from Open Libary itself"))
@@ -3296,6 +3314,30 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"ok": True, "verlauf": verlauf.eintragen(k, self._pfad_erlaubt)})
                 except verlauf.VerlaufFehler as e:
                     return self._fehler(400, str(e))
+            if u.path == "/api/vorfall":          # from the app shells: {art: crash|freeze, was: "..."}
+                was = k.get("was") if isinstance(k.get("was"), str) else ""
+                v = BERICHTE.vorfall(k.get("art") if k.get("art") in ("crash", "freeze") else "freeze",
+                                     {"was": was[:500] or "The window stopped responding", "quelle": "app window"})
+                return self._json({"ok": True, "id": v["id"]})
+            if u.path == "/api/vorfaelle/erledigt":      # {ids: [...]}: asked about, do not ask again
+                ids = k.get("ids") if isinstance(k.get("ids"), list) else []
+                BERICHTE.erledigen({x for x in ids if isinstance(x, str)})
+                return self._json({"ok": True})
+            if u.path == "/api/bericht/fragen":           # {an: bool}: ask after crashes and freezes
+                return self._json({"fragen": BERICHTE.fragen(bool(k.get("an")))})
+            if u.path == "/api/bericht/vorschau":         # {ids, mit_dateinamen}: the snapshot exactly as it would go
+                ids = [x for x in (k.get("ids") or []) if isinstance(x, str)] if isinstance(k.get("ids"), list) else []
+                return self._json({"schnappschuss": BERICHTE.schnappschuss(ids, bool(k.get("mit_dateinamen")))})
+            if u.path == "/api/bericht/senden":
+                # {art, text, kontakt, ids, schnappschuss}: schnappschuss is the text the form showed, or null
+                text = k.get("text") if isinstance(k.get("text"), str) else ""
+                if not text.strip():
+                    raise Fehleingabe(tx("Please describe what happened."))
+                schnapp = k.get("schnappschuss") if isinstance(k.get("schnappschuss"), str) else None
+                ids = [x for x in (k.get("ids") or []) if isinstance(x, str)] if isinstance(k.get("ids"), list) else []
+                ok, meldung = BERICHTE.senden(k.get("art") or "manual", text.strip(),
+                                              k.get("kontakt") if isinstance(k.get("kontakt"), str) else "", schnapp, ids)
+                return self._json({"ok": ok, "text": tx(meldung)}, 200 if ok else 502)
             if u.path == "/api/sprache":         # {sprache: "en"|"de"}; the page reloads afterwards
                 code = str(k.get("sprache") or "")
                 if code not in i18n.LANGUAGES:
@@ -3450,8 +3492,33 @@ def alten_server_ersetzen(port):
     return None
 
 
+def berichtszustand():
+    """Counts for the snapshot of a problem report: no names, no paths."""
+    zeilen = INDEX.zeilen if INDEX else []
+    formate = collections.Counter(z.get("format") or "?" for z in zeilen)
+    arten = collections.Counter(z.get("lo") or "?" for z in zeilen)
+    leicht_stand = LEICHT.bericht() if LEICHT else {}
+    return {
+        "Language, style": f"{i18n.current()}, {stil_aktuell()}",
+        "Library": f"{len(ORDNER.liste()) if ORDNER else 0} folder(s), {len(zeilen)} files "
+                   f"({', '.join(f'{k} {n}' for k, n in formate.most_common(8))}), "
+                   f"{arten.get('loop', 0)} loops, {arten.get('oneshot', 0)} one-shots",
+        "Analysis": f"gehoer {'yes' if os.path.exists(GEHOER) else 'no'}, light analysis "
+                    f"{'running' if leicht_stand.get('laeuft') else 'idle'}, {len(LEICHT.werte()) if LEICHT else 0} values"
+                    + (f", last error: {leicht_stand['fehler']}" if leicht_stand.get("fehler") else ""),
+        "Freesound connected": "yes" if netz.freesound_stand().get("login") else "no",
+        "Tools": ", ".join(f"{k} {'yes' if v else 'no'}" for k, v in (("ffmpeg", netz.KONFIG.get("ffmpeg")),
+                                                                     ("rubberband", shutil.which("rubberband")))),
+    }
+
+
+def bericht_ordner():
+    """Folders whose names stay out of a report: the user's sample folders and where downloads go."""
+    return [o["pfad"] for o in (ORDNER.liste() if ORDNER else [])] + [str(MUSIK), str(ABLAGE), str(NETZ_ZIEL), str(DRUM_ZIEL)]
+
+
 def main():
-    global INDEX, PORT, MESSDIENST, ORDNER, KLANG, LEICHT
+    global INDEX, PORT, MESSDIENST, ORDNER, KLANG, LEICHT, BERICHTE
     ap = argparse.ArgumentParser(description="Open Libary: search and play your sample library, download Web packs")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--ohne-browser", action="store_true")
@@ -3470,6 +3537,20 @@ def main():
             webbrowser.open(url)
         return
     t0 = time.time()
+    BERICHTE = bericht.Berichte(DATEN, VERSION, berichtszustand, bericht_ordner,
+                                [os.environ.get("OPENLIBARY_LOG") or plattform.protokoll(), DATEN / "openlibary.log",
+                                 plattform.protokoll()],
+                                {str(HIER): "<app>", sys.base_prefix: "<python>", sys.prefix: "<python>"})
+    BERICHTE.starten(a.port)                     # notices whether the last run crashed; from here on it watches
+
+    def frueh_beenden(signum, frame):            # until the full handler below is set (loading the index takes a while)
+        BERICHTE.beenden()
+        os._exit(0)
+    signal.signal(signal.SIGTERM, frueh_beenden)
+    # the terminal of a source start closed: a clean end too. Not where it is ignored (nohup in the Mac app)
+    sighup = hasattr(signal, "SIGHUP") and signal.getsignal(signal.SIGHUP) != signal.SIG_IGN
+    if sighup:
+        signal.signal(signal.SIGHUP, frueh_beenden)
     LEICHT = leicht.Leicht(leicht_befehl(), LEICHT_DB, None, leicht_kandidaten, leicht_neu_laden)
     INDEX = Index()
     MESSDIENST = Messdienst()
@@ -3488,8 +3569,11 @@ def main():
                 os.unlink(MESSDIENST.liste_jetzt)
             except OSError:
                 pass
+        BERICHTE.beenden()                      # clean end: no crash report at the next start
         os._exit(0)
     signal.signal(signal.SIGTERM, beenden)
+    if sighup:
+        signal.signal(signal.SIGHUP, beenden)
     netz.KONFIG.update(ziel=NETZ_ZIEL, ziel_drums=DRUM_ZIEL, zusaetze=ZUSAETZE, md5_bestand=lambda: INDEX.md5, nach_laden=INDEX.laden,
                        konfig_ordner=KONFIG_ORDNER,
                        geprueft_urls=lambda: {r.get("quelle_url") for r in INDEX.urteile.values()},
@@ -3518,7 +3602,7 @@ def main():
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        pass
+        BERICHTE.beenden()
 
 
 if __name__ == "__main__":

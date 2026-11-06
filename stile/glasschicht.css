@@ -119,7 +119,8 @@ html.glas #jetzt .quelle,html.glas .pegelzeile .quelle{opacity:1}
 html.glas .korr input,html.glas .korr select,html.glas #jetzt .notizzeile input{border:none;box-shadow:inset 0 0 0 .5px var(--fuss-linie)}
 
 /* ---------- Menus, popovers, messages: control layer, text-heavy, so full tint */
-html.glas .plmenue,html.glas .projektfeld,html.glas .ladeliste,html.glas .tastenkarte,html.glas #meldung{background:var(--glas-dicht);
+html.glas .plmenue,html.glas .projektfeld,html.glas .ladeliste,html.glas .tastenkarte,html.glas .berichtkarte,html.glas #meldung,
+html.glas .stoerung{background:var(--glas-dicht);
   -webkit-backdrop-filter:var(--glas-filter);backdrop-filter:var(--glas-filter);
   border:none;box-shadow:var(--glas-innen),var(--menue-schatten);color:var(--text)}
 /* the project field sits in the header: no glass on glass, hence the dense tint and text in the content color */
@@ -127,7 +128,12 @@ html.glas .plmenue,html.glas .projektfeld{border-radius:14px;padding:8px}
 html.glas .pleintrag{border-radius:8px}
 html.glas .pleintrag i{border-radius:4px}
 html.glas .ladeliste{border-radius:18px;bottom:calc(var(--fuss-h,140px) + var(--unter-h,0px) + 24px)}
-html.glas .tastenkarte{margin:0 12px;border-radius:var(--glas-rund);left:0;right:0}
+html.glas .tastenkarte,html.glas .berichtkarte{margin:0 12px;border-radius:var(--glas-rund);left:0;right:0}
+html.glas .berichtkarte{margin:4px 12px 8px}
+/* fields take the tint of the card instead of the color style's opaque ground */
+html.glas:not(.glas-pur) .brform textarea,html.glas:not(.glas-pur) .brform input[type=text]{background:transparent}
+html.glas:not(.glas-pur) .brvorschau{background:rgba(127,127,127,.08)}
+html.glas .stoerung{border-radius:999px;padding:7px 16px}
 html.glas #meldung{border-radius:999px;padding:7px 16px;bottom:calc(var(--fuss-h,140px) + var(--unter-h,0px) + 26px)}
 
 /* ---------- Fallbacks */
@@ -138,14 +144,14 @@ html.glas #meldung{border-radius:999px;padding:7px 16px;bottom:calc(var(--fuss-h
 /* Reduce transparency: macOS setting or our own switch (WebKit does not evaluate the media query everywhere) */
 @media (prefers-reduced-transparency:reduce){
   html.glas header,html.glas footer,html.glas .unterlage{background:var(--glas-deckend);-webkit-backdrop-filter:none;backdrop-filter:none}
-  html.glas .plmenue,html.glas .projektfeld,html.glas .ladeliste,html.glas .tastenkarte,html.glas #meldung{background:var(--glas-dicht);
-    -webkit-backdrop-filter:none;backdrop-filter:none}
+  html.glas .plmenue,html.glas .projektfeld,html.glas .ladeliste,html.glas .tastenkarte,html.glas .berichtkarte,html.glas #meldung,
+  html.glas .stoerung{background:var(--glas-dicht);-webkit-backdrop-filter:none;backdrop-filter:none}
   html.glas header::after,html.glas footer::after,html.glas .unterlage::after,html.glas body::after{display:none}
 }
 html.glas.wenig-glas header,html.glas.wenig-glas footer,html.glas.wenig-glas .unterlage{background:var(--glas-deckend);
   -webkit-backdrop-filter:none;backdrop-filter:none}
 html.glas.wenig-glas .plmenue,html.glas.wenig-glas .projektfeld,html.glas.wenig-glas .ladeliste,html.glas.wenig-glas .tastenkarte,
-html.glas.wenig-glas #meldung{background:var(--glas-dicht);-webkit-backdrop-filter:none;backdrop-filter:none}
+html.glas.wenig-glas .berichtkarte,html.glas.wenig-glas #meldung,html.glas.wenig-glas .stoerung{background:var(--glas-dicht);-webkit-backdrop-filter:none;backdrop-filter:none}
 html.glas.wenig-glas header::after,html.glas.wenig-glas footer::after,html.glas.wenig-glas .unterlage::after,html.glas.wenig-glas body::after{display:none}
 /* Reduce motion: no transitions, no press effect, no rotation */
 @media (prefers-reduced-motion:reduce){

@@ -7,7 +7,7 @@ ZIEL="${1:-$HOME/Downloads}"
 NAME="Open Libary $(date +%Y-%m-%d)"
 TMP="$(mktemp -d)"
 mkdir -p "$TMP/$NAME/app" "$TMP/$NAME/stile"
-cp "$HIER"/{openlibary,i18n,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe,klang_vektoren,klang_dienst}.py "$TMP/$NAME/" 2>/dev/null || true
+cp "$HIER"/{openlibary,i18n,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe,klang_vektoren,klang_dienst,bericht}.py "$TMP/$NAME/" 2>/dev/null || true
 cp "$HIER"/seite.html "$HIER"/einrichten.sh "$HIER"/GUIDE.md "$TMP/$NAME/"
 cp "$HIER"/stile/*.css "$TMP/$NAME/stile/"
 cp -R "$HIER/lang" "$TMP/$NAME/"

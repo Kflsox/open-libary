@@ -43,6 +43,12 @@ static NSString *L(NSString *en, NSString *de) { return deutsch ? de : en; }
 @property (strong) WKWebView *web;
 @property (strong) NSEvent *letzteMaus;
 @property (assign) NSInteger versuche;
+// heartbeat of the page (seite.html posts "puls" every 2 s): times in systemUptime, which stands still while the Mac sleeps
+@property (assign) NSTimeInterval letzterPuls;
+@property (assign) BOOL pulsGesehen;          // the loaded page sent at least one: only then a missing one means something
+@property (assign) BOOL haengt;               // a freeze was reported; the next heartbeat ends the episode
+@property (assign) NSTimeInterval letzterAbsturz;
+@property (strong) NSTimer *pulsUhr;
 @end
 
 @implementation Fenster
@@ -54,7 +60,7 @@ static NSString *L(NSString *en, NSString *de) { return deutsch ? de : en; }
                isEqualToString:@"de"];
     WKWebViewConfiguration *konf = [[WKWebViewConfiguration alloc] init];
     konf.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
-    for (NSString *name in @[@"ziehen", @"kopieren", @"finder", @"ordner", @"sprache"])
+    for (NSString *name in @[@"ziehen", @"kopieren", @"finder", @"ordner", @"sprache", @"puls"])
         [konf.userContentController addScriptMessageHandler:self name:name];
     self.web = [[WKWebView alloc] initWithFrame:NSZeroRect configuration:konf];
     self.web.UIDelegate = self;
@@ -77,6 +83,10 @@ static NSString *L(NSString *en, NSString *de) { return deutsch ? de : en; }
     __weak Fenster *ich = self;
     [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskLeftMouseDown | NSEventMaskLeftMouseDragged)
                                           handler:^NSEvent *(NSEvent *e) { ich.letzteMaus = e; return e; }];
+    // common modes: also while a menu is open or a drag runs
+    self.pulsUhr = [NSTimer timerWithTimeInterval:2 target:self selector:@selector(pulsPruefen) userInfo:nil repeats:YES];
+    self.pulsUhr.tolerance = 0.5;
+    [[NSRunLoop mainRunLoop] addTimer:self.pulsUhr forMode:NSRunLoopCommonModes];
     [self serverStarten];
 }
 
@@ -98,7 +108,65 @@ static NSString *L(NSString *en, NSString *de) { return deutsch ? de : en; }
     NSMenuItem *neu = [am addItemWithTitle:L(@"Reload", @"Neu laden") action:@selector(neuLaden) keyEquivalent:@"r"];
     neu.target = self;
     ansicht.submenu = am;
+    NSMenuItem *hilfe = [[NSMenuItem alloc] init]; [haupt addItem:hilfe];
+    NSMenu *hm = [[NSMenu alloc] initWithTitle:L(@"Help", @"Hilfe")];
+    NSMenuItem *melden = [hm addItemWithTitle:L(@"Report a problem …", @"Problem melden …") action:@selector(berichtOeffnen)
+                                keyEquivalent:@""];
+    melden.target = self;
+    hilfe.submenu = hm;
     [NSApp setMainMenu:haupt];
+    NSApp.helpMenu = hm;
+}
+
+// Help > Report a problem: the page's form (seite.html, window.berichtOeffnen)
+- (void)berichtOeffnen {
+    [self.fenster makeKeyAndOrderFront:nil];
+    [self.web evaluateJavaScript:@"window.berichtOeffnen && window.berichtOeffnen()" completionHandler:nil];
+}
+
+// Incident for the server (bericht.py): the page asks about it at the next look
+- (void)vorfall:(NSString *)art was:(NSString *)was {
+    NSMutableURLRequest *anfrage = [NSMutableURLRequest requestWithURL:
+        [NSURL URLWithString:[ADRESSE stringByAppendingString:@"api/vorfall"]]];
+    anfrage.HTTPMethod = @"POST";
+    anfrage.timeoutInterval = 5;
+    [anfrage setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    anfrage.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{@"art": art, @"was": was} options:0 error:nil];
+    [[[NSURLSession sharedSession] dataTaskWithRequest:anfrage
+                                     completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {}] resume];
+}
+
+// Every 2 s: no heartbeat for 10 s while the window can be seen and the page is loaded -> freeze, once per episode.
+// While nobody can see it (app in the background, window hidden or covered, a sheet open, a mouse button held for a
+// drag) the page may be throttled: the clock starts fresh then.
+- (void)pulsPruefen {
+    NSTimeInterval jetzt = [NSProcessInfo processInfo].systemUptime;
+    BOOL sichtbar = NSApp.isActive && self.fenster.isVisible && !self.fenster.isMiniaturized
+        && (self.fenster.occlusionState & NSWindowOcclusionStateVisible) && self.fenster.attachedSheet == nil
+        && [NSEvent pressedMouseButtons] == 0;
+    if (!sichtbar || !self.pulsGesehen) { self.letzterPuls = jetzt; return; }
+    if (self.haengt || jetzt - self.letzterPuls < 10) return;
+    self.haengt = YES;
+    [self vorfall:@"freeze" was:@"The window stopped responding"];
+}
+
+// a new page is loading: its heartbeat has to arrive first
+- (void)webView:(WKWebView *)w didCommitNavigation:(WKNavigation *)n {
+    self.pulsGesehen = NO;
+    self.haengt = NO;
+}
+
+// The page's process died: report it and load the page again; a second time right after, no endless loop
+- (void)webViewWebContentProcessDidTerminate:(WKWebView *)w {
+    self.pulsGesehen = NO;
+    self.haengt = NO;
+    [self vorfall:@"crash" was:@"The page of the window crashed (web content process ended)"];
+    NSTimeInterval jetzt = [NSProcessInfo processInfo].systemUptime;
+    BOOL nochmal = self.letzterAbsturz > 0 && jetzt - self.letzterAbsturz < 10;
+    self.letzterAbsturz = jetzt;
+    if (nochmal) [self seite:L(@"The page crashed again.", @"Die Seite ist wieder abgestürzt.")
+                        text:L(@"Cmd+R loads it again.", @"Cmd+R lädt sie neu.")];
+    else [self neuLaden];
 }
 
 - (void)neuLaden {
@@ -213,6 +281,12 @@ static NSString *L(NSString *en, NSString *de) { return deutsch ? de : en; }
 }
 
 - (void)userContentController:(WKUserContentController *)u didReceiveScriptMessage:(WKScriptMessage *)m {
+    if ([m.name isEqualToString:@"puls"]) {
+        self.letzterPuls = [NSProcessInfo processInfo].systemUptime;
+        self.pulsGesehen = YES;
+        self.haengt = NO;
+        return;
+    }
     if ([m.name isEqualToString:@"ordner"]) { [self ordnerWaehlen]; return; }
     if ([m.name isEqualToString:@"sprache"] && [m.body isKindOfClass:[NSString class]]) {
         BOOL neu = [m.body isEqualToString:@"de"];

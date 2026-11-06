@@ -1,0 +1,19 @@
+{
+  "name": "open-libary-berichte",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker that turns Open Libary bug reports into GitHub issues",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "test": "node test.mjs",
+    "check": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.3"
+  }
+}

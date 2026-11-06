@@ -218,6 +218,11 @@
     <label class="schalter ziehenwahl" title="Logic and Pro Tools do not take OGG or FLAC; the WAV version stays with the renders for good, because the DAW project points to it">When dragging into the DAW
       <select id="ziehenAls"><option value="noetig">OGG and FLAC as WAV (for Logic, Pro Tools)</option><option value="immer">everything as WAV, MP3 too</option><option value="aus">always the original</option></select></label>
     <label class="schalter doppeltwahl" title="Otherwise the same sound in several packs appears only once"><input type="checkbox" id="doppelte"> Show duplicates separately <span class="quelle">otherwise the same sound in several packs appears only once</span></label>
+    <h3 class="netztitel einstabschnitt">Problems</h3>
+    <p class="netzerklaer">A report goes privately to the developer, only when you press Send, and you can read exactly what it contains before sending.</p>
+    <div class="reihe brmeldenreihe"><button type="button" id="brMelden">Report a problem …</button></div>
+    <label class="schalter brfragenwahl"><input type="checkbox" id="brFragen" checked disabled> Ask what happened after a crash or freeze</label>
+    <p class="quelle brfuss" data-tx-html>Questions and ideas: <a href="https://www.reddit.com/r/Open_Libary/" target="_blank" rel="noopener">r/Open_Libary</a></p>
   </main>
 
   <main id="netz" hidden>
@@ -312,6 +317,40 @@
 <div id="meldung" hidden></div>
 <div id="plMenue" class="plmenue" hidden></div>
 <div id="tastenkarte" class="tastenkarte" role="dialog" aria-label="Keyboard shortcuts" hidden></div>
+<!-- Problem report (bericht.py): opens by itself after a crash or freeze, or from Settings and the app's Help menu.
+     Nothing is sent before Send; the snapshot that goes is exactly the text the preview shows. -->
+<div id="bericht" class="berichtkarte" role="dialog" aria-labelledby="brTitel" tabindex="-1" hidden>
+  <form id="brForm" class="brform" novalidate>
+    <h2 id="brTitel" class="brtitel">Report a problem</h2>
+    <div id="brVorfaelle" class="brvorfaelle"></div>
+    <label class="brfeld" for="brWas">What happened?</label>
+    <textarea id="brWas" rows="4" aria-required="true" aria-describedby="brWasFehler"></textarea>
+    <p id="brWasFehler" class="brfehler" hidden></p>
+    <label class="brfeld" for="brDavor">What were you doing just before? <span class="quelle">optional</span></label>
+    <textarea id="brDavor" rows="3"></textarea>
+    <label class="brfeld" for="brKontakt">Contact <span class="quelle">optional, only if you want an answer: email or Reddit name</span></label>
+    <input id="brKontakt" type="text" maxlength="200" autocomplete="email" spellcheck="false">
+    <div class="brschnapp">
+      <label class="schalter"><input type="checkbox" id="brMitSchnapp" checked> <span>Send a snapshot of the app's state</span></label>
+      <p class="quelle brerklaer">Version, system, counts from your library and the end of the log; after a crash or freeze also its details. Your user name and the paths of your sample folders are replaced.</p>
+      <label class="schalter"><input type="checkbox" id="brNamen"> <span>Include file and folder names <span class="quelle">otherwise samples show as &lt;audio 1&gt;.wav</span></span></label>
+      <button type="button" class="textknopf brzeigen" id="brZeigen" aria-expanded="false" aria-controls="brVorschauFeld">Show exactly what is sent</button>
+      <div id="brVorschauFeld" class="brvorschaufeld" hidden>
+        <p id="brVorschauInfo" class="quelle" aria-live="polite"></p>
+        <pre id="brVorschau" class="brvorschau" tabindex="0" aria-label="Snapshot as it is sent"></pre>
+      </div>
+    </div>
+    <p id="brEhrlich" class="brehrlich">Nothing leaves this computer until you press Send. The report goes privately to the developer.</p>
+    <p id="brAus" class="braus" hidden></p>
+    <div class="reihe brknoepfe">
+      <button type="submit" id="brSenden" class="inlib">Send</button>
+      <button type="button" id="brSpaeter">Not now</button>
+      <span id="brStatus" class="brstatus" role="status" aria-live="polite"></span>
+    </div>
+    <p class="quelle brfuss" data-tx-html>Questions and ideas: <a href="https://www.reddit.com/r/Open_Libary/" target="_blank" rel="noopener">r/Open_Libary</a></p>
+  </form>
+</div>
+<div id="stoerung" class="stoerung" role="status" aria-live="polite" hidden></div>
 <audio id="ton" preload="auto"></audio>
 
 <script>
@@ -3190,6 +3229,11 @@ addEventListener("keydown", e => {
   const imFeld = ["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName);
   if (!$("#tastenkarte").hidden && (e.key === "Escape" || (e.key === "?" && !imFeld))){ e.preventDefault(); return karteZu(); }
   if (e.key === "Escape" && !$("#projektFeld").hidden){ if (imFeld) document.activeElement.blur(); return rahmenFeldZu(); }
+  // problem report: Esc closes it (from a filled text field it first leaves the field); inside it no shortcuts act
+  if (!$("#bericht").hidden && $("#plMenue").hidden){
+    if (e.key === "Escape"){ e.preventDefault(); return brEsc(); }
+    if ($("#bericht").contains(document.activeElement)) return;
+  }
   if (e.key === "Escape" && imFeld){ document.activeElement.blur(); return; }
   if (e.key === "Escape" && !$("#plMenue").hidden) return plZu();
   if (e.key === "Escape" && LIZ.an && reiterJetzt() === "bib") return lizenzZu();
@@ -4269,7 +4313,7 @@ document.querySelectorAll(".reiter button").forEach(b => b.addEventListener("cli
   // no search on opening (in a test it cost 10 to 40 s and Openverse quota before anyone had typed)
   if (r === "netz") kontenZeigen();      // accounts: state of Freesound and Looperman
   if (r === "netz" && !$("#geprueft").innerHTML){ startZeigen(); geprueftZeigen(); setTimeout(() => $("#netzsuche").focus(), 50); }
-  if (r === "einst"){ stileZeigen(); ordnerZeigen(); fsZeigen(); }
+  if (r === "einst"){ stileZeigen(); ordnerZeigen(); fsZeigen(); brEinstZeigen(); }
 }));
 
 /* ---------- Random: always exactly one loop, it plays at once, drag it or go on */
@@ -5515,6 +5559,213 @@ function tappen(){
   }
 }
 
+/* ---------- Problem reports (bericht.py). After a crash or freeze the form opens by itself and asks what happened;
+   "Report a problem …" in Settings and the app's Help menu (window.berichtOeffnen) open it any time. Nothing is sent
+   before Send, and the snapshot that goes is exactly the text the preview shows: the server sends the string it gets. */
+const BR = {offen:false, modus:"manual", vorfaelle:[], ids:[], fragen:true, senden:true, geladen:false, erledigt:new Set(),
+  vorschau:null, vorschauNamen:null, vorschauNr:0, sendet:false, gesendet:false, fehlschlaege:0, zurueck:null, pollZeit:0, zuZeit:0};
+const BR_TAKT = 15000, BR_FRIST = 8000;      // ask every 15 s; no answer within 8 s counts as a miss, 3 misses: notice
+const BR_REDDIT = `<a href="https://www.reddit.com/r/Open_Libary/" target="_blank" rel="noopener">r/Open_Libary</a>`;
+// what the server and the app shells write into an incident, in the page's language where the text is known
+function brWasText(w){
+  w = String(w || "");
+  let m = w.match(/^A request has been running for (\d+) s$/);
+  if (m) return tx("A request has been running for {n} s", {n: m[1]});
+  m = w.match(/^The page of the window crashed \((.+)\)$/);
+  if (m) return tx("The page of the window crashed ({reason})", {reason: m[1]});
+  return ({"Open Libary ended without closing (crash, forced quit or power loss)": tx("Open Libary ended without closing (crash, forced quit or power loss)"),
+           "Open Libary stood still for more than a minute": tx("Open Libary stood still for more than a minute"),
+           "The window stopped responding": tx("The window stopped responding")})[w] || w;
+}
+// "Open Libary froze at 14:32"; in the list of several "Froze at 14:32"; another day with its date
+function brSatz(v, inListe){
+  const z = String(v.zeit || ""), w = {time: z.slice(11, 16),
+    date: new Date(+z.slice(0, 4), +z.slice(5, 7) - 1, +z.slice(8, 10)).toLocaleDateString(LOCALE, {day: "numeric", month: "numeric"})};
+  const heute = z.slice(0, 10) === new Date().toLocaleDateString("sv-SE"), absturz = v.art === "crash";
+  if (inListe) return heute ? (absturz ? tx("Crashed at {time}", w) : tx("Froze at {time}", w))
+    : (absturz ? tx("Crashed on {date} at {time}", w) : tx("Froze on {date} at {time}", w));
+  return heute ? (absturz ? tx("Open Libary crashed at {time}", w) : tx("Open Libary froze at {time}", w))
+    : (absturz ? tx("Open Libary crashed on {date} at {time}", w) : tx("Open Libary froze on {date} at {time}", w));
+}
+function brOeffnen(vorfaelle, vonSelbst){
+  const k = $("#bericht"), liste = (vorfaelle || []).filter(v => v && v.id);
+  if (BR.offen){ if (!vonSelbst) $("#brWas").focus(); return; }     // already open: an incident keeps its ids
+  BR.offen = true; BR.vorfaelle = liste; BR.ids = liste.map(v => v.id); BR.modus = liste.length ? "vorfall" : "manual";
+  $("#brTitel").textContent = liste.length === 1 ? brSatz(liste[0])
+    : liste.length ? tx("Open Libary had {n} problems", {n: liste.length}) : tx("Report a problem");
+  $("#brVorfaelle").innerHTML = liste.length === 1 ? (liste[0].was ? `<p class="quelle">${esc(brWasText(liste[0].was))}</p>` : "")
+    : liste.length ? `<ul>${liste.map(v => `<li>${esc(brSatz(v, true))}${v.was ? ` <span class="quelle">· ${esc(brWasText(v.was))}</span>` : ""}</li>`).join("")}</ul>` : "";
+  brVorschauZu(); BR.vorschau = null; BR.vorschauNr++;      // the snapshot belongs to these incidents: built anew
+  brFeldFehler(""); if (!BR.gesendet) brStatus("");
+  brSendenZeigen();
+  karteZu(); rahmenFeldZu();
+  BR.zurueck = document.activeElement;
+  k.hidden = false; brLage(); k.scrollTop = 0;
+  // opened by the user: straight into the first field; opened by itself: onto the dialog, so typing elsewhere does not land in it
+  (vonSelbst ? k : $("#brWas")).focus({preventScroll: true});
+}
+window.berichtOeffnen = () => brOeffnen();       // Help menu of the app (main.m, main.js)
+// between header and player bar like the shortcuts card; in a narrow or low window down to its edge, over the player
+function brLage(){
+  const k = $("#bericht");
+  if (k.hidden) return;
+  const oben = document.querySelector("header").getBoundingClientRect().bottom,
+    unten = ($("#unterlage").hidden ? document.querySelector("footer") : $("#unterlage")).getBoundingClientRect().top;
+  k.style.top = oben + "px"; k.style.bottom = (innerWidth < 600 || unten - oben < 320 ? 0 : Math.max(0, innerHeight - unten)) + "px";
+}
+function brSchliessen(){
+  clearTimeout(BR.zuZeit);
+  if (BR.gesendet) brLeeren();
+  BR.offen = false; $("#bericht").hidden = true;
+  const z = BR.zurueck; BR.zurueck = null;
+  if (z && z !== document.body && document.contains(z)) try { z.focus({preventScroll: true}); } catch {}
+}
+// "Not now" and Esc: these incidents are asked about; the next one asks again. What was typed stays until it is sent.
+async function brSpaeter(){
+  if (BR.sendet) return;
+  const ids = BR.ids;
+  ids.forEach(i => BR.erledigt.add(i));      // also when the server misses it: do not ask again at the next round
+  brSchliessen();
+  if (ids.length) try { await post("/api/vorfaelle/erledigt", {ids}); } catch {}
+}
+function brEsc(){
+  const a = document.activeElement, k = $("#bericht");
+  if (k.contains(a) && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && a.type === "text")) && a.value.trim()) return k.focus();
+  brSpaeter();
+}
+function brLeeren(){
+  for (const id of ["#brWas", "#brDavor", "#brKontakt"]) $(id).value = "";
+  $("#brMitSchnapp").checked = true; $("#brNamen").checked = false;
+  BR.gesendet = false; BR.vorschau = null; BR.vorschauNr++; brVorschauZu(); brStatus(""); brKnoepfe();
+}
+function brStatus(t, art){ const s = $("#brStatus"); s.textContent = t || ""; s.className = "brstatus" + (art ? " " + art : ""); }
+function brFeldFehler(t){ const f = $("#brWasFehler"); f.textContent = t; f.hidden = !t; $("#brWas").setAttribute("aria-invalid", t ? "true" : "false"); }
+function brSendenZeigen(){
+  const aus = $("#brAus");
+  aus.hidden = BR.senden; $("#brEhrlich").hidden = !BR.senden;      // without a receiver nothing goes anywhere
+  aus.innerHTML = BR.senden ? "" : esc(tx("Sending is not set up in this version.")) + " " + tx("You can describe the problem on {link} instead.", {link: BR_REDDIT});
+  brKnoepfe();
+}
+function brKnoepfe(){
+  const sperre = BR.sendet || BR.gesendet, schnapp = $("#brMitSchnapp").checked;
+  $("#brSenden").disabled = sperre || !BR.senden;
+  $("#brSpaeter").disabled = BR.sendet;
+  for (const id of ["#brWas", "#brDavor", "#brKontakt"]) $(id).readOnly = sperre;
+  $("#brMitSchnapp").disabled = sperre;
+  $("#brNamen").disabled = sperre || !schnapp;
+  $("#brZeigen").disabled = !schnapp;
+  $("#brForm").setAttribute("aria-busy", String(BR.sendet));
+}
+function brVorschauZu(){
+  $("#brVorschauFeld").hidden = true; $("#brZeigen").setAttribute("aria-expanded", "false");
+  $("#brZeigen").textContent = tx("Show exactly what is sent");
+}
+async function brVorschauLaden(){
+  const nr = ++BR.vorschauNr, namen = $("#brNamen").checked, pre = $("#brVorschau"), info = $("#brVorschauInfo");
+  BR.vorschau = null; pre.textContent = ""; info.textContent = tx("loading …"); pre.setAttribute("aria-busy", "true");
+  try {
+    const d = await post("/api/bericht/vorschau", {ids: BR.ids, mit_dateinamen: namen});
+    if (nr !== BR.vorschauNr) return null;
+    BR.vorschau = String(d.schnappschuss ?? ""); BR.vorschauNamen = namen;
+    pre.textContent = BR.vorschau;
+    info.textContent = tx("{n} lines, {size}", {n: zahlDe0(BR.vorschau.split("\n").length),
+                                                size: groesseText(Math.max(1000, new Blob([BR.vorschau]).size))});
+    return BR.vorschau;
+  } catch(e){
+    if (nr === BR.vorschauNr) info.textContent = tx("The preview did not load: {err}", {err: e.message});
+    return null;
+  } finally { if (nr === BR.vorschauNr) pre.removeAttribute("aria-busy"); }
+}
+$("#brZeigen").addEventListener("click", () => {
+  if (!$("#brVorschauFeld").hidden) return brVorschauZu();
+  $("#brVorschauFeld").hidden = false; $("#brZeigen").setAttribute("aria-expanded", "true");
+  $("#brZeigen").textContent = tx("Hide what is sent");
+  if (BR.vorschau == null || BR.vorschauNamen !== $("#brNamen").checked) brVorschauLaden();
+});
+$("#brNamen").addEventListener("change", () => { BR.vorschau = null; BR.vorschauNr++; if (!$("#brVorschauFeld").hidden) brVorschauLaden(); });
+$("#brMitSchnapp").addEventListener("change", e => { if (!e.target.checked) brVorschauZu(); brKnoepfe(); });
+$("#brWas").addEventListener("input", () => { if (!$("#brWasFehler").hidden) brFeldFehler(""); });
+$("#brSpaeter").addEventListener("click", brSpaeter);
+$("#brForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (BR.sendet || BR.gesendet || !BR.senden) return;
+  const was = $("#brWas").value.trim(), davor = $("#brDavor").value.trim();
+  if (!was){ brFeldFehler(tx("Please describe what happened.")); $("#brWas").focus(); return; }
+  BR.sendet = true; brKnoepfe(); brStatus(tx("Sending …"));
+  const ctl = new AbortController(), frist = setTimeout(() => ctl.abort(), 45000);    // the server waits up to 20 s for the receiver
+  try {
+    let schnapp = null;
+    if ($("#brMitSchnapp").checked){
+      schnapp = BR.vorschau != null && BR.vorschauNamen === $("#brNamen").checked ? BR.vorschau : await brVorschauLaden();
+      if (schnapp == null){ brStatus(tx("The snapshot could not be put together. Send without it, or try again."), "fehler"); return; }
+    }
+    const art = BR.modus === "manual" ? "manual" : BR.vorfaelle.some(v => v.art === "crash") ? "crash" : "freeze";
+    const r = await fetch("/api/bericht/senden", {method: "POST", headers: {"Content-Type": "application/json"}, signal: ctl.signal,
+      body: JSON.stringify({art, text: was + (davor ? "\n\nJust before:\n" + davor : ""),
+                            kontakt: $("#brKontakt").value.trim(), ids: BR.ids, schnappschuss: schnapp})});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok){
+      BR.gesendet = true; BR.ids.forEach(i => BR.erledigt.add(i));
+      brStatus(d.text || tx("Thank you, the report has arrived."), "ok");
+      BR.zuZeit = setTimeout(brSchliessen, 2200);
+    } else brStatus(d.text || d.fehler || tx("The report did not arrive. Please try again later."), "fehler");
+  } catch {
+    brStatus(tx("Open Libary is not responding. Your text stays here; try again in a moment."), "fehler");
+  } finally {
+    clearTimeout(frist); BR.sendet = false; brKnoepfe();
+  }
+});
+// Settings: the switch follows the server; while it saves, a round of questions does not overwrite it
+function brEinstZeigen(){
+  const c = $("#brFragen");
+  if (!BR.geladen || c.dataset.speichert) return;
+  c.disabled = false; c.checked = BR.fragen;
+}
+$("#brFragen").addEventListener("change", async e => {
+  const c = e.target;
+  c.dataset.speichert = "1";
+  try { BR.fragen = (await post("/api/bericht/fragen", {an: c.checked})).fragen !== false; }
+  catch(err){ melden(tx("Not saved: {err}", {err: err.message})); }
+  delete c.dataset.speichert; c.checked = BR.fragen;
+});
+$("#brMelden").addEventListener("click", () => brOeffnen());
+// Ask about open incidents now and every 15 s. Without an answer three times in a row: a quiet notice, gone again
+// as soon as the server answers
+function brStoerung(an){
+  const s = $("#stoerung");
+  if (s.hidden !== an) return;
+  if (an) s.textContent = BR.fragen ? tx("Open Libary is not responding. After a restart it will ask what happened.") : tx("Open Libary is not responding.");
+  s.hidden = !an; brStoerungLage();
+}
+function brStoerungLage(){ const s = $("#stoerung"); if (!s.hidden) s.style.top = document.querySelector("header").getBoundingClientRect().bottom + 8 + "px"; }
+async function brAbfragen(){
+  clearTimeout(BR.pollZeit);
+  const ctl = new AbortController(), frist = setTimeout(() => ctl.abort(), BR_FRIST);
+  let antwort = false, d = null;
+  try {
+    const r = await fetch("/api/vorfaelle", {signal: ctl.signal, cache: "no-store"});
+    antwort = true;          // it answers; an older server without this route (404) is no outage
+    if (r.ok) d = await r.json();
+  } catch {}
+  clearTimeout(frist);
+  if (!antwort){ if (++BR.fehlschlaege >= 3) brStoerung(true); }
+  else { BR.fehlschlaege = 0; brStoerung(false); }
+  if (d){
+    BR.fragen = d.fragen !== false; BR.senden = d.senden !== false; BR.geladen = true;
+    brEinstZeigen();
+    if (BR.offen) brSendenZeigen();
+    const neu = (Array.isArray(d.offen) ? d.offen : []).filter(v => v && v.id && !BR.erledigt.has(v.id));
+    if (neu.length && BR.fragen && !BR.offen) brOeffnen(neu, true);
+  }
+  BR.pollZeit = setTimeout(brAbfragen, BR_TAKT);
+}
+addEventListener("resize", () => { brLage(); brStoerungLage(); });
+// Mac app (main.m): a heartbeat every 2 s; when it stops while the window is visible, the app reports a freeze
+if (window.webkit?.messageHandlers?.puls){
+  const puls = () => { try { window.webkit.messageHandlers.puls.postMessage("puls"); } catch {} };
+  puls(); setInterval(puls, 2000);
+}
+
 /* ---------- Start-up */
 (async function start(){
   sortKopf();
@@ -5524,6 +5775,7 @@ function tappen(){
   sammlungenLaden();
   laden(true);
   ladelisteBeobachten();
+  brAbfragen();        // open incidents: the report form asks about them
   try {
     const d = await (await fetch("/api/packs")).json();
     $("#packliste").innerHTML = d.packs.map(p => `<option value="${esc(p)}">`).join("");

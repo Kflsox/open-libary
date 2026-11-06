@@ -11,7 +11,7 @@ BAU="${OPENLIBARY_BAU:-$HOME/Library/Caches/OpenLibary-bau}"
 F="$HIER/app/fenster"
 RES="$F/res"
 rm -rf "$RES" && mkdir -p "$RES/openlibary/stile"
-cp "$HIER"/{openlibary,i18n,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe}.py "$RES/openlibary/"
+cp "$HIER"/{openlibary,i18n,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe,bericht}.py "$RES/openlibary/"
 cp "$HIER/seite.html" "$HIER/GUIDE.md" "$RES/openlibary/"
 cp "$HIER"/stile/*.css "$RES/openlibary/stile/"
 cp -R "$HIER/lang" "$RES/openlibary/"           # translations, must sit next to i18n.py

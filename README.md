@@ -163,6 +163,15 @@ text. Placeholders such as `{n}` stay as they are. A text without an entry shows
 To add a language: copy `lang/de.json` to `lang/<code>.json`, translate the values (not the keys), and add the code
 with the language's own name to `LANGUAGES` in `i18n.py`. `python tests/check_translations.py` lists every text that is still missing.
 
+## Reporting a problem
+
+After a crash or a freeze, Open Libary asks what happened; **Report a problem …** in Settings and in the Help menu
+works any time. You decide whether a snapshot goes along, and you can read all of it before sending: version, system,
+counts of your library, the incident with the program's stack traces and the end of the log. Your home folder, your
+sample folders and file names are replaced by placeholders unless you include them. Nothing leaves your computer until
+you press Send; the report goes to a small receiver ([`empfaenger/`](empfaenger/)) that files it in a private issue
+tracker. Questions and ideas: [r/Open_Libary](https://www.reddit.com/r/Open_Libary/).
+
 ## How it was made
 
 Open Libary is vibe-coded: Kflsox decides what it does and tests it, the code is written with an AI assistant

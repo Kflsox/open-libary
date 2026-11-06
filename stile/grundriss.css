@@ -485,6 +485,54 @@ button.klein:hover{border-color:var(--leiste-linie);color:var(--leiste-text)}
 .tkgruppe kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--linie2);border-radius:var(--rund);padding:0 5px;
   color:var(--text);background:var(--flaeche)}
 
+/* Problem report (bericht.py): a surface like the shortcuts card, below it in the stack; the form in one column.
+   The page sets top and bottom when opening it. */
+.berichtkarte{position:fixed;left:0;right:0;z-index:44;overflow-y:auto;background:var(--grund);color:var(--text);
+  border-top:1px solid var(--linie);padding:18px 20px 28px}
+.berichtkarte:focus{outline:none}
+.brform{max-width:980px}
+/* one column of 640 px for reading and typing; only the preview may use the full width (stack lines are long) */
+.brform > *:not(.brschnapp),.brschnapp > *:not(.brvorschaufeld){max-width:640px}
+.brtitel{font-size:16px;font-weight:600;margin:0 0 4px;line-height:1.3}
+.brvorfaelle p,.brvorfaelle ul{margin:0}
+.brvorfaelle ul{padding-left:18px}
+.brvorfaelle li{margin:2px 0}
+.brfeld{display:block;margin:16px 0 5px;font-weight:600}
+.brfeld .quelle{font-weight:400;margin-left:4px}
+.brform textarea,.brform input[type=text]{display:block;width:100%}
+.brform textarea{font:inherit;color:inherit;background:var(--grund);border:1px solid var(--linie2);border-radius:var(--rund);
+  padding:6px 8px;resize:vertical;min-height:56px;line-height:1.45}
+.brform textarea:focus{outline:2px solid var(--signal);outline-offset:-1px}
+.brform textarea::placeholder{color:var(--sehrleise)}
+.brform textarea[aria-invalid=true]{border-color:var(--nein)}
+.brform textarea:read-only,.brform input:read-only{opacity:.6}
+.brfehler{color:var(--nein);margin:5px 0 0;font-size:12px}
+.brschnapp{margin-top:20px}
+.brschnapp::before{content:"";display:block;max-width:640px;border-top:1px solid var(--linie);margin-bottom:12px}
+.brschnapp label.schalter{color:var(--text);align-items:baseline}
+.brschnapp label.schalter input{flex:none;align-self:center;margin-left:0}
+.brschnapp label.schalter .quelle{margin-left:4px}
+.brschnapp .brerklaer{margin:3px 0 10px 22px;max-width:618px;font-size:12px;line-height:1.45}
+.brzeigen{margin-top:10px}
+.brvorschaufeld{margin-top:8px}
+.brvorschaufeld .quelle{margin:0 0 4px;font-size:12px}
+.brvorschau{margin:0;max-height:40vh;min-height:48px;overflow:auto;white-space:pre;tab-size:4;
+  font:11px/1.5 ui-monospace,"SF Mono",Menlo,Consolas,"Cascadia Mono","DejaVu Sans Mono",monospace;
+  background:var(--flaeche);color:var(--text);border:1px solid var(--linie);border-radius:var(--rund);padding:8px 10px}
+.brehrlich{margin:18px 0 0;color:var(--leise)}
+.braus{margin:8px 0 0;color:var(--warn)}
+.braus a,.brfuss a{color:inherit;text-underline-offset:2px}
+.brknoepfe{margin-top:14px;flex-wrap:wrap;gap:8px 10px}
+.brknoepfe button{padding:5px 14px}
+.brstatus{font-size:13px;color:var(--leise)}
+.brstatus.fehler{color:var(--nein)}
+.brstatus.ok{color:var(--ok)}
+.brfuss{margin:22px 0 0;font-size:12px}
+.brmeldenreihe{margin:4px 0 2px}
+/* the server stopped answering: a quiet notice below the header, stays until it answers again */
+.stoerung{position:fixed;left:50%;transform:translateX(-50%);z-index:47;max-width:calc(100vw - 32px);
+  background:var(--text);color:var(--grund);padding:6px 12px;border-radius:var(--rund);font-size:12px}
+
 /* Project frame: switch in the header to the right of the tabs, field below it. Text color from the header (Cobalt and
    Violet have a colored header); off: muted, on: underline in the text color (one marker for "active now"). */
 .projekt{position:relative}

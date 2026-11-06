@@ -27,6 +27,7 @@ const L = (en, de) => (deutsch ? de : en);
 
 let fenster = null;
 let server = null;
+let beendet = false;      // quitting: a page that goes away now is no crash
 
 // second start: only bring the existing window forward, no second server (it would end the first one)
 const einzig = app.requestSingleInstanceLock();
@@ -47,6 +48,16 @@ function laeuft(fertig) {
   const anfrage = http.get(ADRESSE + "api/stand", r => { r.resume(); fertig(r.statusCode === 200); });
   anfrage.on("error", () => fertig(false));
   anfrage.setTimeout(2000, () => anfrage.destroy());
+}
+
+// Report an incident to the server (bericht.py): the page asks about it at the next look
+function vorfall(art, was) {
+  const daten = JSON.stringify({ art, was });
+  const anfrage = http.request(ADRESSE + "api/vorfall", { method: "POST", headers: {
+    "Content-Type": "application/json", "Content-Length": Buffer.byteLength(daten) } }, r => r.resume());
+  anfrage.on("error", () => {});
+  anfrage.setTimeout(5000, () => anfrage.destroy());
+  anfrage.end(daten);
 }
 
 function serverStarten() {
@@ -89,6 +100,27 @@ function fensterBauen() {
     if (!url.startsWith(ADRESSE) && !url.startsWith("data:")) { e.preventDefault(); sicherExtern(url); }
   });
   fenster.on("closed", () => { fenster = null; });
+  // Windows shutdown, restart and log off: before-quit and will-quit do not come then (Electron docs), only this
+  fenster.on("session-end", serverBeenden);
+  // the page hangs: one incident per episode; the page crashed: report it and load it again
+  let haengt = false;
+  fenster.on("unresponsive", () => {
+    if (haengt || beendet) return;
+    haengt = true;
+    vorfall("freeze", "The window stopped responding");
+  });
+  fenster.on("responsive", () => { haengt = false; });
+  let letzterAbsturz = 0;
+  fenster.webContents.on("render-process-gone", (e, details) => {
+    // "killed": Windows shutting down or logging off ends the page that way, no crash
+    if (beendet || !fenster || details.reason === "clean-exit" || details.reason === "killed") return;
+    vorfall("crash", `The page of the window crashed (${details.reason})`);
+    // crashes again right after loading: no endless loop, the user reloads by hand
+    const nochmal = Date.now() - letzterAbsturz < 10000;
+    letzterAbsturz = Date.now();
+    if (nochmal) seite(L("The page crashed again.", "Die Seite ist wieder abgestürzt."), L("Ctrl+R loads it again.", "Strg+R lädt sie neu."));
+    else fenster.loadURL(ADRESSE);
+  });
   seite(L("Open Libary is starting …", "Open Libary startet …"),
     L("One moment. On the first start the Windows firewall may ask: <b>Allow</b> is not needed, Open Libary only talks "
       + "to this computer.", "Einen Moment, beim ersten Start fragt die Windows-Firewall eventuell nach: <b>Zulassen</b> "
@@ -105,6 +137,8 @@ function menueBauen() {
       { role: "selectAll", label: L("Select All", "Alles auswählen") }] },
     { label: L("View", "Ansicht"), submenu: [{ label: L("Reload", "Neu laden"), accelerator: "CmdOrCtrl+R",
       click: () => fenster && fenster.loadURL(ADRESSE) }, { role: "togglefullscreen", label: L("Full Screen", "Vollbild") }] },
+    { label: L("Help", "Hilfe"), role: "help", submenu: [{ label: L("Report a problem …", "Problem melden …"),
+      click: () => fenster && fenster.webContents.executeJavaScript("window.berichtOeffnen && window.berichtOeffnen()").catch(() => {}) }] },
   ]));
 }
 
@@ -140,5 +174,14 @@ if (einzig) app.whenReady().then(() => {
   fensterBauen();
 });
 app.on("window-all-closed", () => app.quit());
-// the server belongs to this window: end it on quit (on Windows an invisible python.exe would stay behind)
-app.on("will-quit", () => { if (server && server.exitCode === null) server.kill(); });
+app.on("before-quit", () => { beendet = true; });
+// the server belongs to this window: end it on quit (on Windows an invisible python.exe would stay behind). On Windows
+// kill() is TerminateProcess and the server cannot clean up: remove its session file, otherwise the next start
+// reports a crash. Only when this app ends a server that still runs; a server that died keeps its file.
+function serverBeenden() {
+  beendet = true;
+  if (!server || server.exitCode !== null || server.signalCode !== null) return;
+  server.kill();
+  try { fs.unlinkSync(path.join(DATEN, "sitzung.json")); } catch (e) {}
+}
+app.on("will-quit", serverBeenden);

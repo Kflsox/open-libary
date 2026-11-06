@@ -101,6 +101,9 @@ in the "From Looperman" strip: listen and drag it straight into FL.
   estimates: tempo of loops and root note of 808 and bass, marked with "~" in the list. An estimated tempo can be half
   or double the real one. It does not estimate the key of loops (too unreliable). gehoer, the author's own analysis
   tool (not published yet), measures more accurately; Open Libary uses it when it is set up on the computer.
+- **Something went wrong?** After a crash or a freeze Open Libary asks what happened; **Report a problem …** in
+  Settings works any time. Before sending you can read everything that goes along; names of your folders and files
+  stay out unless you include them. Questions and ideas: [r/Open_Libary](https://www.reddit.com/r/Open_Libary/).
 - **Update (source install):** extract the new package, put it in a permanent place and run `einrichten.sh` there. It
   takes over favorites, playlists, notes, history, your folders and style from the previous folder
   (`sammlungen.json`, `verlauf.json`, `korrekturen.json`, `zusaetze.csv`, `eigene.csv`, `ordner.json`, `stil.txt`).

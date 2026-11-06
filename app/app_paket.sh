@@ -25,7 +25,7 @@ clang -fobjc-arc -O2 -target x86_64-apple-macos10.15 -o "$TMP/ol-x86_64" "$HIER/
 lipo -create -output "$APP/Contents/MacOS/Open Libary" "$TMP/ol-arm64" "$TMP/ol-x86_64"
 
 # Code (no user data and no gehoer parts); lang/ holds the translations and must sit next to i18n.py
-cp "$HIER"/{openlibary,i18n,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe}.py "$R/openlibary/"
+cp "$HIER"/{openlibary,i18n,netz,ordner,leicht,leichtmessen,plattform,audioform,sammlungen,verlauf,korrekturen,klangnaehe,bericht}.py "$R/openlibary/"
 cp "$HIER/seite.html" "$HIER/GUIDE.md" "$R/openlibary/"
 cp "$HIER"/stile/*.css "$R/openlibary/stile/"
 cp -R "$HIER/lang" "$R/openlibary/"

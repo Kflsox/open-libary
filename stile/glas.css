@@ -227,6 +227,16 @@ html.glas .stiloption[aria-pressed=true] .haken{top:102px;right:12px}
 .posten button:not(.textknopf):hover,.netzkopf button:hover,.zkarte button:not(.textknopf):hover,#downloads button:not(.spiel):not(.textknopf):hover,
 .ezeile button:not(.spiel):hover,.leerknoepfe button:hover,.hinweis button:hover,.ladung button:hover,.lizenzansicht button:not(.textknopf):hover{background:var(--fuellung2)}
 .zkarte .herzknopf.an{color:var(--signal)}
+/* Problem report: fields as fills like elsewhere in the content, buttons as capsules, Send in the signal color */
+.brform textarea,.brform input[type=text]{background:var(--feld);border:none;box-shadow:inset 0 0 0 .5px var(--linie2);border-radius:10px}
+.brform textarea[aria-invalid=true]{box-shadow:inset 0 0 0 1px var(--nein)}
+.brschnapp::before{border-top:.5px solid var(--linie2)}
+.brvorschau{border:none;border-radius:10px;background:var(--fuellung)}
+.brknoepfe button,#brMelden{border:none;border-radius:999px;background:var(--fuellung);color:var(--text);padding:5px 14px}
+.brknoepfe button:hover:not(:disabled),#brMelden:hover{background:var(--fuellung2)}
+.brknoepfe .inlib{background:var(--signal);color:var(--auf-signal);font-weight:600}
+.brknoepfe .inlib:hover:not(:disabled){background:var(--signal)}
+.brknoepfe .inlib:disabled{background:var(--fuellung);color:var(--leise)}
 
 /* ---------- Fallbacks for the content glass (those for the bars and menus are in glasschicht.css) */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){

@@ -268,7 +268,8 @@ def main():
         hol(basis, "/api/sprache", {"sprache": "en"})
 
         # problem reports: a freeze is noticed, the snapshot keeps names out, sending delivers exactly that text
-        paket = json.loads((Path(a.code) / "app/fenster/package.json").read_text(encoding="utf-8"))["version"]
+        # package.json sits in the repo, not in the code folder of a packaged app
+        paket = json.loads((Path(__file__).resolve().parent.parent / "app/fenster/package.json").read_text(encoding="utf-8"))["version"]
         v0 = hol(basis, "/api/vorfaelle")
         pruefe("reports: version as in package.json", v0.get("version") == paket, f"{v0.get('version')} / {paket}")
         pruefe("reports: nothing to ask on a first start", v0.get("offen") == [] and v0.get("fragen") is True, v0)

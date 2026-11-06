@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kflsox/open-libary/releases/latest"><b>Download</b></a> for macOS, Windows and Linux
+  <a href="https://github.com/jyxpi/open-libary/releases/latest"><b>Download</b></a> for macOS, Windows and Linux
   &nbsp;·&nbsp; <a href="GUIDE.md">Setup guide</a>
   &nbsp;·&nbsp; <a href="LICENSE">AGPL-3.0</a>
 </p>
@@ -122,7 +122,7 @@ Settings > Appearance. Liquid Glass also goes on top of any of the color styles.
 
 The finished apps (Mac from macOS 10.15, Apple chip and Intel; Windows 10 and 11 as installer or zip; Linux as .deb and tar.gz) bring
 everything they need, nothing has to be installed. Download them from the
-[latest release](https://github.com/Kflsox/open-libary/releases/latest). Step by step, including what to do the first
+[latest release](https://github.com/jyxpi/open-libary/releases/latest). Step by step, including what to do the first
 time you open an unsigned app: [GUIDE.md](GUIDE.md).
 
 Only matching loops to the project tempo and key uses two programs the apps do not include: ffmpeg and rubberband
@@ -174,7 +174,7 @@ tracker. Questions and ideas: [r/Open_Libary](https://www.reddit.com/r/Open_Liba
 
 ## How it was made
 
-Open Libary is vibe-coded: Kflsox decides what it does and tests it, the code is written with an AI assistant
+Open Libary is vibe-coded: jyxpi decides what it does and tests it, the code is written with an AI assistant
 (Claude Code).
 
 ## License

@@ -427,7 +427,7 @@ await test("handler files an issue (mocked GitHub)", async () => {
   assert.deepEqual(await json(res), { ok: true });
   assert.equal(aufrufe.length, 1);
   const { url, init } = aufrufe[0];
-  assert.equal(url, "https://api.github.com/repos/Kflsox/open-libary-berichte/issues");
+  assert.equal(url, "https://api.github.com/repos/jyxpi/open-libary-berichte/issues");
   assert.equal(init.method, "POST");
   assert.equal(init.headers.Authorization, `Bearer ${TOKEN}`);
   assert.equal(init.headers["User-Agent"], "open-libary-berichte");

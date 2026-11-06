@@ -3,8 +3,8 @@
   "productName": "Open Libary",
   "version": "1.2.2",
   "description": "Sample library: your own folders, free sounds from the web, drag into the DAW",
-  "author": "Kflsox",
-  "homepage": "https://github.com/Kflsox/open-libary",
+  "author": "jyxpi",
+  "homepage": "https://github.com/jyxpi/open-libary",
   "main": "main.js",
   "private": true,
   "devDependencies": {

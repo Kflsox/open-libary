@@ -1,7 +1,7 @@
 # open-libary-berichte
 
 A small Cloudflare Worker that receives bug reports from Open Libary and files each one as an issue in the
-private GitHub repo `Kflsox/open-libary-berichte`. GitHub then notifies the owner by mail.
+private GitHub repo `jyxpi/open-libary-berichte`. GitHub then notifies the owner by mail.
 
 The app never talks to GitHub. Only this Worker holds the token, as a Cloudflare secret.
 
@@ -97,11 +97,11 @@ and the 429 after five reports can be tried with the curl command below against 
 
 ## Deploy (owner, once)
 
-1. **GitHub repo and labels.** Create the private repo `Kflsox/open-libary-berichte` if it does not exist yet.
+1. **GitHub repo and labels.** Create the private repo `jyxpi/open-libary-berichte` if it does not exist yet.
    Create the labels once so they get colors (GitHub may also create missing ones itself):
 
    ```sh
-   for l in crash freeze manual mac windows linux other; do gh label create "$l" -R Kflsox/open-libary-berichte; done
+   for l in crash freeze manual mac windows linux other; do gh label create "$l" -R jyxpi/open-libary-berichte; done
    ```
 
 2. **Cloudflare.** Create a free account at dash.cloudflare.com, then log in from this folder:
@@ -121,7 +121,7 @@ and the 429 after five reports can be tried with the curl command below against 
 
 4. **GitHub token.** github.com > Settings > Developer settings > Personal access tokens > Fine-grained tokens >
    Generate new token:
-   - Resource owner: `Kflsox`
+   - Resource owner: `jyxpi`
    - Repository access: Only select repositories > `open-libary-berichte`
    - Permissions > Repository permissions > Issues: Read and write (Metadata: Read-only is added automatically)
    - Expiration: your choice; note the date, reports fail with 502 once it expires.

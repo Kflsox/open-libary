@@ -1,6 +1,6 @@
 // Open Libary report receiver (Cloudflare Worker entry point).
 // Accepts bug reports from the app's local server and files each one as an
-// issue in the private repo Kflsox/open-libary-berichte. The logic lives in
+// issue in the private repo jyxpi/open-libary-berichte. The logic lives in
 // bericht.js; workerd treats every named export here as an entrypoint, so
 // this file exports only the handler and the Durable Object class.
 // SPDX-License-Identifier: AGPL-3.0-only

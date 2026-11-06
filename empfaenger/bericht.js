@@ -3,7 +3,7 @@
 // worker.js is the entry point Cloudflare runs.
 // SPDX-License-Identifier: AGPL-3.0-only
 
-export const REPO = "Kflsox/open-libary-berichte";
+export const REPO = "jyxpi/open-libary-berichte";
 export const MAX_KOERPER = 256 * 1024; // request body, bytes
 export const MAX_TEXT = 5000; // characters
 export const MAX_KONTAKT = 200; // characters

@@ -6,7 +6,7 @@ web (Freesound, ccMixter, Internet Archive) and adds them to your library with a
 
 ## Setup: the finished app (one minute, no terminal)
 
-There are packages for three systems, on the [download page](https://github.com/Kflsox/open-libary/releases/latest).
+There are packages for three systems, on the [download page](https://github.com/jyxpi/open-libary/releases/latest).
 Python and everything else it needs are inside, nothing has to be installed.
 
 | Computer | Package |

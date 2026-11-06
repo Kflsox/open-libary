@@ -69,6 +69,7 @@
           ]
         }
       ],
+      "icon": "icon.png",
       "category": "Audio",
       "maintainer": "Open Libary",
       "synopsis": "Sample library with drag into the DAW"

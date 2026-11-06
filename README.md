@@ -13,6 +13,7 @@
   <a href="https://github.com/jyxpi/open-libary/releases/latest"><b>Download</b></a> for macOS, Windows and Linux
   &nbsp;·&nbsp; <a href="GUIDE.md">Setup guide</a>
   &nbsp;·&nbsp; <a href="LICENSE">AGPL-3.0</a>
+  &nbsp;·&nbsp; <a href="https://buymeacoffee.com/jyxpi">Buy me a coffee</a>
 </p>
 
 <picture>

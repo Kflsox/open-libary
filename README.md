@@ -120,7 +120,7 @@ Settings > Appearance. Liquid Glass also goes on top of any of the color styles.
 
 ## Setup
 
-The finished apps (Mac from macOS 10.15, Apple chip and Intel; Windows 10 and 11; Linux as .deb and tar.gz) bring
+The finished apps (Mac from macOS 10.15, Apple chip and Intel; Windows 10 and 11 as installer or zip; Linux as .deb and tar.gz) bring
 everything they need, nothing has to be installed. Download them from the
 [latest release](https://github.com/Kflsox/open-libary/releases/latest). Step by step, including what to do the first
 time you open an unsigned app: [GUIDE.md](GUIDE.md).
@@ -143,7 +143,7 @@ Then `http://127.0.0.1:8765/` opens in the browser. Dragging into the DAW works 
 bash app/pythons_holen.sh                         # standalone Pythons with numpy and soundfile (needs uv)
 bash app/app_paket.sh <target folder>             # Mac, Universal (Objective-C shell, needs the Command Line Tools)
 cd app/fenster && npm ci && cd ../..
-bash app/fenster_paket.sh windows <target folder> # Windows x64 (Electron)
+bash app/fenster_paket.sh windows <target folder> # Windows x64 (Electron), Setup.exe and zip
 bash app/fenster_paket.sh linux <target folder>   # Linux x64, .deb and tar.gz
 ```
 

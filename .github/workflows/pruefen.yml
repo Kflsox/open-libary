@@ -81,7 +81,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-app
-          path: ${{ runner.temp }}/paket/*Windows.zip
+          path: |
+            ${{ runner.temp }}/paket/*Windows.zip
+            ${{ runner.temp }}/paket/*Windows-Setup.exe
           retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
@@ -123,6 +125,35 @@ jobs:
           Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
           Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force
           if (-not $ok) { Get-Content "$env:APPDATA\Open Libary\openlibary.log" -Tail 50 -ErrorAction SilentlyContinue; exit 1 }
+      - name: Install with the Setup.exe, start, uninstall
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem "$env:RUNNER_TEMP\paket\*Windows-Setup.exe").FullName
+          Start-Process -FilePath $setup -ArgumentList "/S" -Wait
+          $dir = "$env:LOCALAPPDATA\Programs\open-libary"
+          $lnk = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Open Libary.lnk"
+          $key = Get-ChildItem "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall" |
+                 Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -like "Open Libary*" }
+          if (-not (Test-Path "$dir\Open Libary.exe")) { Write-Host "not installed in $dir"; exit 1 }
+          if (-not (Test-Path $lnk)) { Write-Host "no Start menu entry"; exit 1 }
+          if (-not $key) { Write-Host "no entry in Apps & features"; exit 1 }
+          Write-Host "Installed, Start menu entry and Apps & features entry present"
+          $app = Start-Process -FilePath "$dir\Open Libary.exe" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            try {
+              $s = Invoke-RestMethod http://127.0.0.1:8765/api/stand -TimeoutSec 2
+              if ($s.paket -and $s.system -eq "windows") { $ok = $true; break }
+            } catch {}
+            Start-Sleep 1
+          }
+          Write-Host "The installed app started its server: $ok"
+          if (-not $ok) { exit 1 }
+          # the uninstaller has to close the running app (and its Python) by itself
+          Start-Process -FilePath "$dir\Uninstall Open Libary.exe" -ArgumentList "/currentuser", "/S" -Wait
+          for ($i = 0; $i -lt 60 -and (Test-Path "$dir\Open Libary.exe"); $i++) { Start-Sleep 1 }
+          if ((Test-Path "$dir\Open Libary.exe") -or (Test-Path $lnk)) { Write-Host "uninstall left files behind"; exit 1 }
+          Write-Host "Uninstalled"
 
   mac-paket:
     name: Build and start the Mac app (Apple silicon)
@@ -194,7 +225,7 @@ jobs:
 
           | Computer | Package |
           |---|---|
-          | Windows 10 or 11, 64-bit | \`Open-Libary-$v-Windows.zip\` |
+          | Windows 10 or 11, 64-bit | \`Open-Libary-$v-Windows-Setup.exe\` (or \`Open-Libary-$v-Windows.zip\` without installing) |
           | Mac, Apple chip (macOS 11+) or Intel (macOS 10.15+) | \`Open-Libary-$v-Mac.zip\` |
           | Linux: Ubuntu, Mint, Debian | \`Open-Libary-$v-Linux.deb\` |
           | Linux: others | \`Open-Libary-$v-Linux.tar.gz\` |"

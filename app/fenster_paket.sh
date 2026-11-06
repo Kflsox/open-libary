@@ -1,6 +1,7 @@
 #!/bin/bash
 # Build the packaged app for Windows (x64) or Linux (x64), for maximum compatibility: Electron shell (app/fenster),
-# standalone Python 3.12 with numpy and soundfile, code. Result as zip or tar.gz in [target folder].
+# standalone Python 3.12 with numpy and soundfile, code. Result as zip and Setup.exe (Windows) or .deb and tar.gz (Linux)
+# in [target folder].
 #   bash app/fenster_paket.sh windows|linux [target folder]
 # Once beforehand: bash app/pythons_holen.sh and (in app/fenster) npm install.
 set -euo pipefail
@@ -22,7 +23,7 @@ if [ "$SYS" = windows ]; then
   mkdir -p "$RES/python"
   rsync -a $AUS --exclude tcl --exclude include --exclude Scripts --exclude libs --exclude '_tkinter.pyd' \
     --exclude 'tcl*.dll' --exclude 'tk*.dll' "$Q/" "$RES/python/"
-  LIB="$RES/python/Lib"; ZIELART="--win zip --x64"
+  LIB="$RES/python/Lib"; ZIELART="--win zip nsis --x64"     # nsis: one-click installer (per user, Start menu)
 else
   Q="$BAU/py-x86_64-unknown-linux-gnu/python"
   mkdir -p "$RES/python/bin" "$RES/python/lib"
@@ -38,11 +39,13 @@ PYC="$( (ls -d "$HOME"/.local/share/uv/python/cpython-3.12*-macos-aarch64-none/b
 cd "$F"
 [ -d node_modules/electron-builder ] || { echo "run npm install in app/fenster first"; exit 1; }
 # Python and code: extraResources in package.json (res/); output goes to the log, on failure show its end
+rm -f dist/*.exe dist/*.blockmap dist/latest*.yml        # leftovers of an earlier run
 npx electron-builder $ZIELART > "$F/bau.log" 2>&1 || { tail -40 "$F/bau.log"; exit 1; }
 mkdir -p "$ZIEL"
-for d in dist/*.zip dist/*.tar.gz dist/*.deb; do
+for d in dist/*.zip dist/*.tar.gz dist/*.deb dist/*.exe; do
   [ -f "$d" ] || continue
   neu="$ZIEL/Open Libary $(date +%Y-%m-%d) $( [ "$SYS" = windows ] && echo Windows || echo Linux ).${d##*.}"
+  [ "${d##*.}" = exe ] && neu="${neu%.exe}-Setup.exe"         # the release turns it into Open-Libary-<v>-Windows-Setup.exe
   [ "${d##*.}" = gz ] && neu="${neu%.gz}.tar.gz"
   # .deb (Ubuntu, Mint, Debian): sets up the Chromium sandbox with its AppArmor profile, starts without --no-sandbox
   mv "$d" "$neu"; du -h "$neu" | awk '{print "Package: " $2 " (" $1 ")"}'

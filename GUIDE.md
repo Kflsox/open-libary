@@ -12,7 +12,7 @@ Python and everything else it needs are inside, nothing has to be installed.
 | Computer | Package |
 |---|---|
 | Mac with Apple chip (macOS 11 or later) or Intel (macOS 10.15 or later) | `Open-Libary-…-Mac.zip` |
-| Windows 10 or 11, 64-bit | `Open-Libary-…-Windows.zip` |
+| Windows 10 or 11, 64-bit | `Open-Libary-…-Windows-Setup.exe` |
 | Linux, 64-bit: Ubuntu, Mint, Debian | `Open-Libary-…-Linux.deb` |
 | Linux, 64-bit: others | `Open-Libary-…-Linux.tar.gz` |
 
@@ -26,10 +26,15 @@ macOS then asks for access to folders: **Allow**.
 
 **Windows**
 
-🟢 Right-click the zip, **Extract All**, to a permanent place such as `Documents\Open Libary`. Then start
-**Open Libary.exe** (right-click it to pin it to the taskbar if you like).
+🟢 Start the Setup. It installs Open Libary for your user (no admin rights needed), puts it in the Start menu and on
+the desktop, and opens it.
 
 🟢 The first time, Windows SmartScreen reports an unrecognized app: **More info**, then **Run anyway**.
+
+🟢 To uninstall: **Settings, Apps**, Open Libary, **Uninstall**. Your favorites and settings stay.
+
+Without installing, the `Windows.zip` works too: right-click it, **Extract All**, to a permanent place such as
+`Documents\Open Libary`, then start **Open Libary.exe**.
 
 🔴 Don't start the app straight from the zip without extracting it: it would be missing Python and its code.
 
@@ -60,7 +65,7 @@ everything. To include them: right-click the folder, **Always keep on this devic
 
 Your favorites, playlists and settings are stored on Mac in `~/Library/Application Support/Open Libary`, on Windows in
 `%APPDATA%\Open Libary`, on Linux in `~/.local/share/open-libary`. To update, simply put the new app in place of the
-old one.
+old one (on Windows: run the new Setup).
 
 Recommended if available: ffmpeg and rubberband (Mac with Homebrew: `brew install ffmpeg rubberband`); they make
 matching to your project tempo possible. Everything else works without them.

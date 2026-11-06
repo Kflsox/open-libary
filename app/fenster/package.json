@@ -3,7 +3,8 @@
   "productName": "Open Libary",
   "version": "1.2.1",
   "description": "Sample library: your own folders, free sounds from the web, drag into the DAW",
-  "homepage": "http://127.0.0.1:8765/",
+  "author": "Kflsox",
+  "homepage": "https://github.com/Kflsox/open-libary",
   "main": "main.js",
   "private": true,
   "devDependencies": {
@@ -29,9 +30,29 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "include": "installer.nsh",
+      "shortcutName": "Open Libary",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Open-Libary-${version}-Windows-Setup.${ext}"
     },
     "linux": {
       "target": [
